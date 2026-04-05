@@ -69,3 +69,21 @@ coverage.xml
 *.log
 *.docx
 *.sql
+*.zip
+run_logs*/
+*.txt
+*.md
+!README.md
+
+# Other workspace files that shouldn't go to public repo
+dashboard/
+lead-dashboard/
+analyze_*.py
+check_*.py
+validate_*.py
+debug_*.py
+explore_*.py
+count_*.py
+deep_*.py
+backdate*.py
+backfill*.py

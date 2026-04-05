@@ -25,7 +25,9 @@ try {
 // ── State ──────────────────────────────────────────────────────────────
 let leadGridApi = null;
 let healthGridApi = null;
-let allLeads = [];
+let historicalGridApi = null;
+let allLeads = [];        // ALL leads from DB (no date filter) — used by Historical tab
+let recentLeads = [];     // Last 90 days + has address — used by Overview, Lead List, Map
 let allJobRuns = [];
 let currentDetailLead = null;
 let leafletMap = null;
@@ -34,6 +36,155 @@ let chartTimeline = null;
 let chartSources = null;
 let chartScores = null;
 let globalSearchTerm = '';
+let historicalSourceFilter = '';  // '' = all, else source_name value
+
+// ── Authentication State ───────────────────────────────────────────────
+let isAuthenticated = false;
+
+/** Check if user has a valid session on page load. */
+function initAuth() {
+    const session = sessionStorage.getItem('authSession');
+    if (session) {
+        try {
+            const parsed = JSON.parse(session);
+            // Session expires after 8 hours
+            if (parsed.ts && (Date.now() - parsed.ts) < 8 * 60 * 60 * 1000) {
+                isAuthenticated = true;
+            } else {
+                sessionStorage.removeItem('authSession');
+            }
+        } catch { sessionStorage.removeItem('authSession'); }
+    }
+    applyAuthState();
+}
+
+/** Apply visual state based on auth: blur/unblur, show/hide overlay, update button */
+function applyAuthState() {
+    const body = document.body;
+    const overlay = document.getElementById('authLockOverlay');
+    const authBtn = document.getElementById('authBtn');
+    const authIcon = document.getElementById('authIcon');
+
+    if (isAuthenticated) {
+        body.classList.remove('auth-locked');
+        if (overlay) overlay.classList.add('hidden');
+        if (authBtn) {
+            authBtn.classList.add('auth-logged-in');
+            authBtn.title = 'Logged in — click to log out';
+        }
+        if (authIcon) {
+            // Checkmark icon when logged in
+            authIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>';
+        }
+    } else {
+        body.classList.add('auth-locked');
+        if (overlay) overlay.classList.remove('hidden');
+        if (authBtn) {
+            authBtn.classList.remove('auth-logged-in');
+            authBtn.title = 'Login';
+        }
+        if (authIcon) {
+            // Person icon when logged out
+            authIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>';
+        }
+    }
+}
+
+/** Guard: returns true if authenticated, otherwise shows login prompt */
+function requireAuth(actionName) {
+    if (isAuthenticated) return true;
+    showToast('Please log in to ' + (actionName || 'use this feature'), 'error');
+    openLoginModal();
+    return false;
+}
+
+function handleAuthBtnClick() {
+    if (isAuthenticated) {
+        doLogout();
+    } else {
+        openLoginModal();
+    }
+}
+
+function openLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        const usernameField = document.getElementById('loginUsername');
+        if (usernameField) setTimeout(() => usernameField.focus(), 100);
+    }
+    // Clear previous errors
+    const err = document.getElementById('loginError');
+    if (err) err.classList.add('hidden');
+}
+
+function closeLoginModal() {
+    const modal = document.getElementById('loginModal');
+    if (modal) modal.classList.add('hidden');
+    // Clear fields
+    const u = document.getElementById('loginUsername');
+    const p = document.getElementById('loginPassword');
+    if (u) u.value = '';
+    if (p) p.value = '';
+    const err = document.getElementById('loginError');
+    if (err) err.classList.add('hidden');
+}
+
+async function doLogin() {
+    const username = (document.getElementById('loginUsername').value || '').trim();
+    const password = (document.getElementById('loginPassword').value || '').trim();
+    const errEl = document.getElementById('loginError');
+    const submitBtn = document.getElementById('loginSubmitBtn');
+
+    if (!username || !password) {
+        if (errEl) { errEl.textContent = 'Please enter both username and password.'; errEl.classList.remove('hidden'); }
+        return;
+    }
+
+    // Disable button during request
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+
+    try {
+        const resp = await fetch(`${CONFIG.WORKER_URL}/api/auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        });
+
+        const data = await resp.json().catch(() => ({}));
+
+        if (resp.ok && data.success) {
+            isAuthenticated = true;
+            sessionStorage.setItem('authSession', JSON.stringify({ user: username, ts: Date.now() }));
+            applyAuthState();
+            closeLoginModal();
+            showToast(`Welcome, ${username}!`);
+        } else {
+            if (errEl) {
+                errEl.textContent = data.error || 'Invalid username or password.';
+                errEl.classList.remove('hidden');
+            }
+        }
+    } catch (err) {
+        console.error('Login request failed:', err);
+        if (errEl) {
+            errEl.textContent = 'Unable to connect to authentication server. Please try again.';
+            errEl.classList.remove('hidden');
+        }
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg> Log In';
+        }
+    }
+}
+
+function doLogout() {
+    isAuthenticated = false;
+    sessionStorage.removeItem('authSession');
+    applyAuthState();
+    showToast('Logged out');
+}
 
 // ── Spinner helpers ────────────────────────────────────────────────────
 function hideSpinner() {
@@ -66,8 +217,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 4000);
 
     initTheme();
+    initAuth();
     try { initLeadGrid(); } catch(e) { console.error('initLeadGrid failed:', e); }
     try { initHealthGrid(); } catch(e) { console.error('initHealthGrid failed:', e); }
+    try { initHistoricalGrid(); } catch(e) { console.error('initHistoricalGrid failed:', e); }
 
     loadData().finally(() => clearTimeout(spinnerTimer));
 
@@ -94,7 +247,7 @@ function toggleTheme() {
     html.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
     // Re-render charts for theme
-    if (allLeads.length > 0) renderCharts();
+    if (recentLeads.length > 0) renderCharts();
 }
 
 function isDark() {
@@ -129,7 +282,7 @@ async function loadLeads() {
             .from('leads')
             .select('*')
             .order('discovered_at', { ascending: false })
-            .limit(5000);
+            .limit(20000);
         if (permErr) throw permErr;
 
         allLeads = leads || [];
@@ -165,15 +318,108 @@ async function loadJobRuns() {
 }
 
 function onLeadsLoaded() {
-    if (leadGridApi) leadGridApi.setGridOption('rowData', allLeads);
+    // ── Build the 90-day filtered set for Overview / Lead List / Map ──
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    recentLeads = allLeads.filter(l => {
+        // Must have an address
+        if (!l.address || !l.address.trim()) return false;
+        // Must have a permit_date within the last 90 days (or no date at all — keep it)
+        if (l.permit_date && l.permit_date < cutoffStr) return false;
+        return true;
+    });
+
+    if (leadGridApi) leadGridApi.setGridOption('rowData', recentLeads);
     updateStats();
     renderCharts();
     renderRecentLeads();
+    renderHotLeads();
+    updateNotifications();
     const badge = document.getElementById('leadCountBadge');
-    if (badge) badge.textContent = allLeads.length;
+    if (badge) badge.textContent = recentLeads.length;
+
+    // Also populate the Historical tab grid with ALL leads (no filter)
+    renderHistoricalData();
 }
 
+// ── Notification Bell ──────────────────────────────────────────────────
+function updateNotifications() {
+    const lastSeen = localStorage.getItem('notifLastSeen') || '1970-01-01T00:00:00Z';
+    const newLeads = recentLeads.filter(l => l.discovered_at && l.discovered_at > lastSeen);
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+        if (newLeads.length > 0) {
+            badge.textContent = newLeads.length > 99 ? '99+' : newLeads.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    // Render the dropdown list
+    const list = document.getElementById('notifList');
+    if (!list) return;
+    if (newLeads.length === 0) {
+        list.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No new leads</p>';
+        return;
+    }
+    const top20 = newLeads
+        .sort((a, b) => (b.discovered_at || '').localeCompare(a.discovered_at || ''))
+        .slice(0, 20);
+    list.innerHTML = top20.map(lead => {
+        const ago = timeAgo(lead.discovered_at);
+        return `
+            <div class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors" onclick="openDetailById('${lead.id}')">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">${lead.address || '—'}</span>
+                    ${scoreRenderer({value: lead.lead_score})}
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${ago}</p>
+            </div>`;
+    }).join('');
+    if (newLeads.length > 20) {
+        list.innerHTML += `<p class="text-xs text-gray-400 text-center py-2">+ ${newLeads.length - 20} more</p>`;
+    }
+}
+
+function timeAgo(isoStr) {
+    if (!isoStr) return '';
+    const diff = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+}
+
+function toggleNotificationPanel() {
+    if (!requireAuth('view notifications')) return;
+    const panel = document.getElementById('notifPanel');
+    if (panel) panel.classList.toggle('hidden');
+}
+
+function markAllNotifSeen() {
+    if (!requireAuth('clear notifications')) return;
+    localStorage.setItem('notifLastSeen', new Date().toISOString());
+    updateNotifications();
+    const panel = document.getElementById('notifPanel');
+    if (panel) panel.classList.add('hidden');
+    showToast('Notifications cleared', 'info');
+}
+
+// Close notification panel when clicking outside
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('notifPanel');
+    const btn = document.getElementById('notifBellBtn');
+    if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.classList.add('hidden');
+    }
+});
+
 function refreshData() {
+    if (!requireAuth('refresh data')) return;
     showToast('Refreshing data...');
     loadData(true);
 }
@@ -185,7 +431,7 @@ function initLeadGrid() {
             headerCheckboxSelection: true,
             checkboxSelection: true,
             width: 40, maxWidth: 40, pinned: 'left',
-            suppressMenu: true, resizable: false,
+            suppressMenu: true, resizable: false, suppressSizeToFit: true,
         },
         {
             field: 'lead_score', headerName: 'Score',
@@ -224,6 +470,7 @@ function initLeadGrid() {
         },
         {
             headerName: 'Actions', width: 110, minWidth: 100,
+            pinned: 'right', suppressSizeToFit: true,
             cellRenderer: actionsRenderer,
             suppressMenu: true, sortable: false, filter: false,
         },
@@ -347,8 +594,9 @@ function globalSearchFilter() {
 
 // ── Lead Actions ───────────────────────────────────────────────────────
 async function updateLeadStatus(id, status) {
+    if (!requireAuth('update lead status')) return;
     try {
-        const lead = allLeads.find(l => l.id === id);
+        const lead = allLeads.find(l => l.id === id) || recentLeads.find(l => l.id === id);
         if (supabaseClient && lead) {
             const { error } = await supabaseClient.from('leads').update({ lead_status: status }).eq('id', id);
             if (error) throw error;
@@ -366,6 +614,7 @@ async function updateLeadStatus(id, status) {
 }
 
 async function bulkAction(status) {
+    if (!requireAuth('perform bulk actions')) return;
     const selected = leadGridApi.getSelectedRows();
     if (selected.length === 0) { showToast('No leads selected'); return; }
 
@@ -393,6 +642,7 @@ function bulkReject() { bulkAction('rejected'); }
 
 // ── Export ──────────────────────────────────────────────────────────────
 function exportCSV() {
+    if (!requireAuth('export data')) return;
     if (leadGridApi) {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
@@ -403,6 +653,7 @@ function exportCSV() {
 }
 
 function exportSelected() {
+    if (!requireAuth('export data')) return;
     const selected = leadGridApi.getSelectedRows();
     if (selected.length === 0) { showToast('No leads selected'); return; }
 
@@ -462,7 +713,7 @@ function openDetail(lead) {
 }
 
 function openDetailById(id) {
-    const lead = allLeads.find(l => l.id === id);
+    const lead = allLeads.find(l => l.id === id) || recentLeads.find(l => l.id === id);
     if (lead) openDetail(lead);
 }
 
@@ -475,6 +726,7 @@ function closeDetail() {
 const closeDetailModal = closeDetail;
 
 function detailAction(status) {
+    if (!requireAuth('update lead status')) return;
     if (currentDetailLead) {
         updateLeadStatus(currentDetailLead.id, status);
         closeDetail();
@@ -496,12 +748,17 @@ function toggleRawJson() {
     }
 }
 
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeDetail();
+        closeLoginModal();
+    }
+});
 
 // ── Stats ──────────────────────────────────────────────────────────────
 function updateStats() {
-    const counts = { total: allLeads.length, new: 0, approved: 0, rejected: 0, exported: 0, highScore: 0 };
-    allLeads.forEach(l => {
+    const counts = { total: recentLeads.length, new: 0, approved: 0, rejected: 0, exported: 0, highScore: 0 };
+    recentLeads.forEach(l => {
         const s = l.lead_status || 'new';
         if (counts[s] !== undefined) counts[s]++;
         if ((l.lead_score || 0) >= 7) counts.highScore++;
@@ -535,6 +792,10 @@ function switchTab(tab) {
     if (tab === 'map' && leafletMap) {
         setTimeout(() => leafletMap.invalidateSize(), 100);
     }
+    // Re-render historical grid when switching to that tab (AG Grid needs visible container)
+    if (tab === 'historical' && historicalGridApi) {
+        setTimeout(() => historicalGridApi.sizeColumnsToFit && historicalGridApi.sizeColumnsToFit(), 100);
+    }
 }
 
 // ── Charts (Overview Tab) ──────────────────────────────────────────────
@@ -564,7 +825,7 @@ function renderTimelineChart() {
 
     // Group by ISO week (Mon-Sun) for a cleaner, normalized view
     const byWeek = {};
-    allLeads.forEach(l => {
+    recentLeads.forEach(l => {
         const d = l.permit_date ? l.permit_date.slice(0, 10) : null;
         if (!d || d < cutoffStr) return;
         const weekStart = getWeekStart(d);
@@ -640,7 +901,7 @@ function renderSourcesChart() {
     if (!ctx) return;
 
     const bySrc = {};
-    allLeads.forEach(l => {
+    recentLeads.forEach(l => {
         const s = formatSourceName(l.source_name);
         bySrc[s] = (bySrc[s] || 0) + 1;
     });
@@ -671,7 +932,7 @@ function renderScoresChart() {
     if (!ctx) return;
 
     const buckets = { '1-3 (Low)': 0, '4-6 (Medium)': 0, '7-9 (High)': 0 };
-    allLeads.forEach(l => {
+    recentLeads.forEach(l => {
         const s = l.lead_score || 0;
         if (s >= 7) buckets['7-9 (High)']++;
         else if (s >= 4) buckets['4-6 (Medium)']++;
@@ -709,7 +970,7 @@ function renderRecentLeads() {
     const container = document.getElementById('recentLeads');
     if (!container) return;
 
-    const recent = [...allLeads]
+    const recent = [...recentLeads]
         .filter(l => (l.lead_score || 0) >= 4)
         .sort((a, b) => (b.permit_date || '').localeCompare(a.permit_date || ''))
         .slice(0, 8);
@@ -722,13 +983,45 @@ function renderRecentLeads() {
     container.innerHTML = recent.map(lead => {
         const isNew = lead.lead_status === 'new';
         return `
-            <div class="record-item ${isNew ? 'record-item-new' : ''}" onclick="openDetail(allLeads.find(l=>l.id==='${lead.id}'))">
+            <div class="record-item ${isNew ? 'record-item-new' : ''}" onclick="openDetailById('${lead.id}')">
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                         <span class="font-medium text-sm truncate">${lead.address || '—'}</span>
                         ${isNew ? '<span class="badge-new">New</span>' : ''}
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${lead.permit_type || '—'} · ${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
+                </div>
+                ${scoreRenderer({value: lead.lead_score})}
+            </div>
+        `;
+    }).join('');
+}
+
+// ── Hot Leads (Overview Tab — Score 7+) ────────────────────────────────
+function renderHotLeads() {
+    const container = document.getElementById('hotLeads');
+    if (!container) return;
+
+    const hot = [...recentLeads]
+        .filter(l => (l.lead_score || 0) >= 7)
+        .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0) || (b.permit_date || '').localeCompare(a.permit_date || ''))
+        .slice(0, 8);
+
+    if (hot.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No hot leads yet.</p>';
+        return;
+    }
+
+    container.innerHTML = hot.map(lead => {
+        const isNew = lead.lead_status === 'new';
+        return `
+            <div class="record-item ${isNew ? 'record-item-new' : ''}" onclick="openDetailById('${lead.id}')">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="font-medium text-sm truncate">${lead.address || '—'}</span>
+                        ${isNew ? '<span class="badge-new">New</span>' : ''}
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
                 </div>
                 ${scoreRenderer({value: lead.lead_score})}
             </div>
@@ -758,7 +1051,7 @@ function updateMapMarkers() {
     const showLow = document.getElementById('mapFilterLow').checked;
 
     let count = 0;
-    allLeads.forEach(lead => {
+    recentLeads.forEach(lead => {
         const score = lead.lead_score || 0;
         if (score >= 7 && !showHigh) return;
         if (score >= 4 && score < 7 && !showMedium) return;
@@ -804,6 +1097,166 @@ function getLeadCoords(lead) {
         }
     }
     return null; // No real coords — don't place on map
+}
+
+// ── Historical Data Tab ────────────────────────────────────────────────
+function initHistoricalGrid() {
+    const columnDefs = [
+        {
+            field: 'lead_score', headerName: 'Score',
+            width: 75, maxWidth: 75,
+            cellRenderer: scoreRenderer,
+            sort: 'desc', sortIndex: 0,
+        },
+        {
+            field: 'source_name', headerName: 'Source',
+            width: 155, minWidth: 130,
+            valueFormatter: (p) => formatSourceName(p.value),
+        },
+        {
+            field: 'address', headerName: 'Address',
+            minWidth: 180, flex: 1.5,
+            cellRenderer: (params) => {
+                const addr = params.value || '<em class="text-gray-400">No address</em>';
+                return `<span style="cursor:pointer;color:var(--ag-foreground-color)" class="hover:underline" onclick="openDetailById('${params.data.id}')">${addr}</span>`;
+            },
+        },
+        {
+            field: 'permit_type', headerName: 'Permit Type',
+            minWidth: 160, flex: 1.2,
+        },
+        {
+            field: 'permit_number', headerName: 'Permit #',
+            width: 150, minWidth: 130,
+            cellStyle: { fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' },
+        },
+        {
+            field: 'permit_date', headerName: 'Permit Date',
+            width: 120, minWidth: 110,
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
+            sort: 'desc', sortIndex: 1,
+        },
+        {
+            field: 'permit_status', headerName: 'Permit Status',
+            width: 130, minWidth: 110,
+        },
+        {
+            field: 'jurisdiction', headerName: 'Jurisdiction',
+            width: 150, minWidth: 130,
+        },
+        {
+            field: 'owner_name', headerName: 'Owner',
+            width: 160, minWidth: 130,
+        },
+        {
+            field: 'contractor_name', headerName: 'Contractor',
+            width: 160, minWidth: 130,
+        },
+        {
+            field: 'lead_status', headerName: 'Status',
+            width: 100, minWidth: 90,
+            cellRenderer: statusRenderer,
+        },
+        {
+            field: 'discovered_at', headerName: 'Discovered',
+            width: 160, minWidth: 140,
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
+        },
+    ];
+
+    const gridOptions = {
+        columnDefs,
+        rowData: [],
+        animateRows: true,
+        pagination: true,
+        paginationPageSize: 100,
+        paginationPageSizeSelector: [50, 100, 200, 500],
+        defaultColDef: { sortable: true, filter: true, resizable: true },
+        onRowDoubleClicked: (e) => openDetail(e.data),
+        isExternalFilterPresent: () => !!historicalSourceFilter,
+        doesExternalFilterPass: (node) => {
+            if (!historicalSourceFilter) return true;
+            return node.data && node.data.source_name === historicalSourceFilter;
+        },
+    };
+
+    const gridDiv = document.getElementById('historicalGrid');
+    if (gridDiv) {
+        historicalGridApi = agGrid.createGrid(gridDiv, gridOptions);
+    }
+}
+
+function renderHistoricalData() {
+    if (!historicalGridApi) return;
+    historicalGridApi.setGridOption('rowData', allLeads);
+    renderHistoricalCards();
+}
+
+function renderHistoricalCards() {
+    const container = document.getElementById('historicalCards');
+    if (!container) return;
+
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const sourceIcons = {
+        miami_dade_derm:    '🌿',
+        fort_lauderdale:    '🏖️',
+        city_of_miami_tree: '🌴',
+        city_of_miami:      '🏙️',
+    };
+
+    // Count leads per source
+    const counts = {};
+    let totalCount = allLeads.length;
+    allLeads.forEach(l => {
+        const src = l.source_name || 'unknown';
+        counts[src] = (counts[src] || 0) + 1;
+    });
+
+    // "All Sources" card
+    const allActive = historicalSourceFilter === '' ? 'hist-card-active' : '';
+    let html = `
+        <div class="hist-source-card ${allActive}" onclick="filterHistoricalBySource('')">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gray-100 dark:bg-gray-800">📊</div>
+                <div>
+                    <h4 class="font-bold text-sm">All Sources</h4>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">${totalCount.toLocaleString()} total leads</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    sourceOrder.forEach(src => {
+        const count = counts[src] || 0;
+        const icon = sourceIcons[src] || '📋';
+        const active = historicalSourceFilter === src ? 'hist-card-active' : '';
+        html += `
+            <div class="hist-source-card ${active}" onclick="filterHistoricalBySource('${src}')">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-gray-100 dark:bg-gray-800">${icon}</div>
+                    <div>
+                        <h4 class="font-bold text-sm">${formatSourceName(src)}</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${count.toLocaleString()} leads</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+
+    // Update the total badge
+    const badge = document.getElementById('historicalCountBadge');
+    if (badge) {
+        const shown = historicalSourceFilter ? (counts[historicalSourceFilter] || 0) : totalCount;
+        badge.textContent = shown.toLocaleString();
+    }
+}
+
+function filterHistoricalBySource(source) {
+    historicalSourceFilter = source;
+    if (historicalGridApi) historicalGridApi.onFilterChanged();
+    renderHistoricalCards(); // Re-render to update active state
 }
 
 // ── Health Tab ─────────────────────────────────────────────────────────
@@ -910,6 +1363,7 @@ function renderHealthCards(runs) {
 
 // ── Email Modal ────────────────────────────────────────────────────────
 function openEmailModal() {
+    if (!requireAuth('manage email settings')) return;
     document.getElementById('emailModal').classList.remove('hidden');
     // Pre-fill from localStorage if previously saved
     const saved = JSON.parse(localStorage.getItem('emailPrefs') || '{}');
@@ -924,6 +1378,7 @@ function closeEmailModal() {
 }
 
 async function saveEmailSettings() {
+    if (!requireAuth('save email settings')) return;
     const email = document.getElementById('emailAddress').value.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         showToast('Please enter a valid email address', 'error');

@@ -288,5 +288,60 @@
 /* ── Select styling for dark mode ───────────────────────── */
 [data-theme="dark"] select option { background: #1f2937; color: #e5e7eb; }
 
+/* ── Historical Data Source Cards ───────────────────────── */
+.hist-source-card {
+    background: white; border-radius: 12px; padding: 14px 16px;
+    border: 2px solid #f3f4f6; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.2s ease;
+}
+.hist-source-card:hover { border-color: #a7f3d0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-1px); }
+[data-theme="dark"] .hist-source-card { background: #111827; border-color: #1f2937; }
+[data-theme="dark"] .hist-source-card:hover { border-color: #065f46; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.hist-card-active { border-color: #059669 !important; background: #ecfdf5 !important; }
+[data-theme="dark"] .hist-card-active { border-color: #34d399 !important; background: rgba(5,150,105,0.12) !important; }
+
 /* ── Utility: hidden (used by JS to hide spinner/modals) ── */
 .hidden { display: none !important; }
+
+/* ── Auth: blur overlay when not authenticated ──────────── */
+.auth-lock-overlay {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    z-index: 35; pointer-events: none;
+    display: flex; justify-content: center;
+    padding: 16px; padding-bottom: 24px;
+}
+.auth-lock-overlay.hidden { display: none !important; }
+.auth-lock-banner {
+    pointer-events: auto;
+    display: flex; align-items: center; gap: 16px;
+    background: white; border-radius: 16px; padding: 14px 20px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    max-width: 600px; width: 100%;
+}
+[data-theme="dark"] .auth-lock-banner {
+    background: #1f2937; border-color: #374151;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+
+/* Blur the main content when locked */
+body.auth-locked main {
+    filter: blur(4px);
+    -webkit-filter: blur(4px);
+    pointer-events: none;
+    user-select: none;
+}
+/* Also blur/disable interactive nav items when locked */
+body.auth-locked .auth-requires-login {
+    pointer-events: none;
+    opacity: 0.5;
+}
+/* The auth button itself should always be clickable */
+body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !important; }
+
+/* Auth button logged-in indicator */
+#authBtn.auth-logged-in {
+    background: rgba(255,255,255,0.3);
+    box-shadow: 0 0 0 2px rgba(74,222,128,0.6);
+}
