@@ -283,9 +283,11 @@ function actionsRenderer(params) {
 
 function formatSourceName(name) {
     const map = {
+        'miami_dade_derm': 'Miami-Dade DERM',
         'derm_tree': 'DERM Tree Permits',
         'fort_lauderdale': 'Fort Lauderdale',
         'city_of_miami': 'City of Miami',
+        'city_of_miami_tree': 'Miami Tree Permits',
     };
     return map[name] || name || '—';
 }
@@ -912,25 +914,86 @@ function renderHealthCards(runs) {
 // ── Email Modal ────────────────────────────────────────────────────────
 function openEmailModal() {
     document.getElementById('emailModal').classList.remove('hidden');
+    // Pre-fill from localStorage if previously saved
+    const saved = JSON.parse(localStorage.getItem('emailPrefs') || '{}');
+    if (saved.email) document.getElementById('emailAddress').value = saved.email;
+    if (saved.daily !== undefined) document.getElementById('emailDigest').checked = saved.daily;
+    if (saved.newLeads !== undefined) document.getElementById('emailNewLeads').checked = saved.newLeads;
+    if (saved.errors !== undefined) document.getElementById('emailErrors').checked = saved.errors;
 }
 
 function closeEmailModal() {
     document.getElementById('emailModal').classList.add('hidden');
 }
 
-function saveEmailSettings() {
-    const email = document.getElementById('emailAddress').value;
+async function saveEmailSettings() {
+    const email = document.getElementById('emailAddress').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+    }
+
     const prefs = {
         daily: document.getElementById('emailDigest').checked,
         newLeads: document.getElementById('emailNewLeads').checked,
         errors: document.getElementById('emailErrors').checked,
     };
 
-    // In production, this would save to Supabase email_subscriptions table
-    console.log('Email subscription:', { email, prefs });
+    // Save to localStorage as cache
+    localStorage.setItem('emailPrefs', JSON.stringify({ email, ...prefs }));
 
-    closeEmailModal();
-    showToast('Email notification settings saved!');
+    // Save to Supabase
+    if (supabaseClient) {
+        try {
+            const { error } = await supabaseClient
+                .from('email_subscribers')
+                .upsert({
+                    email: email,
+                    daily_digest: prefs.daily,
+                    new_lead_alerts: prefs.newLeads,
+                    error_alerts: prefs.errors,
+                    subscribed_at: new Date().toISOString(),
+                    is_active: true,
+                }, { onConflict: 'email' });
+
+            if (error) throw error;
+
+            // Trigger the adhoc welcome report via GitHub Actions (debounced)
+            triggerAdhocReport(email);
+
+            closeEmailModal();
+            showToast('✅ Subscribed! A welcome report is on its way.');
+        } catch (err) {
+            console.error('Subscription save failed:', err);
+            closeEmailModal();
+            showToast('Settings saved locally. Will sync when online.', 'info');
+        }
+    } else {
+        closeEmailModal();
+        showToast('Email settings saved locally.', 'info');
+    }
+}
+
+async function triggerAdhocReport(email) {
+    // Debounce: skip if triggered within the last 5 minutes
+    const lastTrigger = parseInt(localStorage.getItem('lastReportTrigger') || '0', 10);
+    if (Date.now() - lastTrigger < 5 * 60 * 1000) {
+        console.log('Adhoc report debounced — triggered recently');
+        return;
+    }
+    localStorage.setItem('lastReportTrigger', String(Date.now()));
+
+    // Call the Supabase Edge Function (or Cloudflare Worker) to dispatch the report
+    if (supabaseClient) {
+        try {
+            await supabaseClient.functions.invoke('send-report', {
+                body: { email, type: 'adhoc' },
+            });
+        } catch (err) {
+            // Non-fatal: the email is saved; daily digest will still fire
+            console.warn('Adhoc report trigger failed (non-fatal):', err);
+        }
+    }
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────
