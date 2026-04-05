@@ -26,8 +26,8 @@ try {
 let leadGridApi = null;
 let healthGridApi = null;
 let historicalGridApi = null;
-let allLeads = [];        // ALL leads from DB (no date filter) — used by Historical tab
-let recentLeads = [];     // Last 90 days + has address — used by Overview, Lead List, Map
+let allLeads = [];        // ALL leads from DB (no date filter) — used ONLY by Historical tab
+let recentLeads = [];     // Last 90 days by discovered_at — used by Overview, Lead List, Map
 let allJobRuns = [];
 let currentDetailLead = null;
 let leafletMap = null;
@@ -271,6 +271,17 @@ async function loadData(isRefresh = false) {
     }
 }
 
+/**
+ * loadLeads() — Two separate queries:
+ *  1. "recent" query  → last 90 days by discovered_at → populates recentLeads (Overview, Lead List, Map)
+ *  2. "historical" query → ALL records, paginated → populates allLeads (Historical tab only)
+ *
+ * Why discovered_at and NOT permit_date?
+ *   permit_date is the government issue date on the original permit — it can be years old,
+ *   especially for backfilled historical records we added to our DB today.
+ *   discovered_at is when WE discovered/ingested the record, so "last 90 days" by
+ *   discovered_at correctly means "leads we've collected in the last 90 days".
+ */
 async function loadLeads() {
     if (!supabaseClient) {
         loadDemoData();
@@ -278,32 +289,66 @@ async function loadLeads() {
     }
 
     try {
-        let allFetchedLeads = [];
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 90);
+        const cutoffIso = cutoff.toISOString();
+
+        // ── Query 1: Recent leads (last 90 days by discovered_at, has address) ──
+        let recentFetched = [];
         let offset = 0;
         const pageSize = 1000;
         let hasMore = true;
 
         while (hasMore) {
-            const { data: page, error: permErr } = await supabaseClient
+            const { data: page, error } = await supabaseClient
                 .from('leads')
                 .select('*')
+                .gte('discovered_at', cutoffIso)
+                .not('address', 'is', null)
+                .neq('address', '')
                 .order('discovered_at', { ascending: false })
                 .range(offset, offset + pageSize - 1);
-            
-            if (permErr) throw permErr;
+
+            if (error) throw error;
 
             if (page && page.length > 0) {
-                allFetchedLeads.push(...page);
+                recentFetched.push(...page);
                 offset += pageSize;
             }
-            
-            // Stop if we got less than a full page, or if we hit an arbitrary max safety limit of 25,000
-            if (!page || page.length < pageSize || allFetchedLeads.length >= 25000) {
+
+            if (!page || page.length < pageSize || recentFetched.length >= 25000) {
                 hasMore = false;
             }
         }
 
-        allLeads = allFetchedLeads || [];
+        recentLeads = recentFetched;
+
+        // ── Query 2: All leads for Historical tab (paginated, no date filter) ──
+        let allFetched = [];
+        offset = 0;
+        hasMore = true;
+
+        while (hasMore) {
+            const { data: page, error } = await supabaseClient
+                .from('leads')
+                .select('*')
+                .order('discovered_at', { ascending: false })
+                .range(offset, offset + pageSize - 1);
+
+            if (error) throw error;
+
+            if (page && page.length > 0) {
+                allFetched.push(...page);
+                offset += pageSize;
+            }
+
+            if (!page || page.length < pageSize || allFetched.length >= 25000) {
+                hasMore = false;
+            }
+        }
+
+        allLeads = allFetched;
+
         onLeadsLoaded();
     } catch (err) {
         console.warn('loadLeads failed, using demo:', err.message || err);
@@ -336,18 +381,8 @@ async function loadJobRuns() {
 }
 
 function onLeadsLoaded() {
-    // ── Build the 90-day filtered set for Overview / Lead List / Map ──
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 90);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
-
-    recentLeads = allLeads.filter(l => {
-        // Must have an address
-        if (!l.address || !l.address.trim()) return false;
-        // Must have a permit_date within the last 90 days (or no date at all — keep it)
-        if (l.permit_date && l.permit_date < cutoffStr) return false;
-        return true;
-    });
+    // recentLeads is already filtered to last 90 days by discovered_at with a valid address
+    // (server-side filter applied in loadLeads — no client-side re-filtering needed)
 
     if (leadGridApi) leadGridApi.setGridOption('rowData', recentLeads);
     updateStats();
@@ -1623,6 +1658,8 @@ function loadDemoData() {
         });
     }
 
+    // In demo mode, recentLeads = allLeads (all demo items are within 30 days anyway)
+    recentLeads = allLeads;
     onLeadsLoaded();
     showToast('Loaded demo data (Supabase not configured)');
 }
