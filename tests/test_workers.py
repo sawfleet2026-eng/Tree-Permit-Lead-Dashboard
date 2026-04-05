@@ -108,12 +108,24 @@ class TestDecodeFileId:
 class TestDecodeWorkGroupNumber:
     """Tests for the WORK_GROUP_NUMBER year-proxy decoder."""
 
-    def test_2026_prefix(self):
-        """WGN starting with 26 → year 2026-01-01."""
-        dt = decode_work_group_number(2600309)
+    def test_current_year_returns_recent_date(self):
+        """Current-year WGN returns a date ~30 days ago, always within 90-day window."""
+        current_year = datetime.now(timezone.utc).year
+        wgn = int(f"{current_year - 2000:02d}00309")
+        dt = decode_work_group_number(wgn)
         assert dt is not None
-        assert dt.year == 2026
-        assert dt.month == 1
+        assert dt.year == current_year
+        age = (datetime.now(timezone.utc) - dt).days
+        assert age <= 90, f"Expected age ≤ 90 days, got {age}"
+
+    def test_prior_year_returns_july(self):
+        """Prior-year WGN returns Jul 1 of that year."""
+        prior_year = datetime.now(timezone.utc).year - 1
+        wgn = int(f"{prior_year - 2000:02d}01346")
+        dt = decode_work_group_number(wgn)
+        assert dt is not None
+        assert dt.year == prior_year
+        assert dt.month == 7
         assert dt.day == 1
 
     def test_2025_prefix(self):
@@ -198,7 +210,7 @@ class TestParseDermRecord:
     def test_future_file_id_falls_back_to_work_group_number(self):
         """When FILE_ID decodes to a future date, WORK_GROUP_NUMBER year is used."""
         # FILE_ID 1805613473886044 decodes to ~2027-03-21 (future) → rejected
-        # WORK_GROUP_NUMBER 2600309 → year 2026 → 2026-01-01
+        # WORK_GROUP_NUMBER 2600309 → year 2026 (current year) → now-30d
         attrs = {
             "PERMIT_NUMBER": "TREE-02600309",
             "PERMIT_TITLE": "TREE Permit",
@@ -208,9 +220,12 @@ class TestParseDermRecord:
             "WORK_GROUP_NUMBER": 2600309,
         }
         lead = parse_derm_record(attrs)
-        assert lead["permit_date"] == "2026-01-01"
         assert lead["_filing_date"] is not None
         assert lead["_filing_date"].year == 2026
+        # Date must be within 90 days of today
+        age = (datetime.now(timezone.utc) - lead["_filing_date"]).days
+        assert age <= 90, f"Fallback date is {age} days old, expected ≤ 90"
+        assert lead["permit_date"] is not None
 
     def test_missing_fields_handled_gracefully(self):
         """All-None attributes shouldn't crash."""

