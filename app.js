@@ -56,12 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Safety net: hide spinner after 8 seconds no matter what
+    // Safety net: hide spinner after 4 seconds no matter what
     const spinnerTimer = setTimeout(() => {
         hideSpinner();
         try { switchTab('overview'); } catch(e) {}
-        try { showToast('Dashboard loaded (timeout fallback)', 'info'); } catch(e) {}
-    }, 8000);
+        try { showToast('Dashboard loaded', 'info'); } catch(e) {}
+    }, 4000);
 
     initTheme();
     try { initLeadGrid(); } catch(e) { console.error('initLeadGrid failed:', e); }
@@ -100,7 +100,7 @@ function isDark() {
 }
 
 // ── Data Loading ───────────────────────────────────────────────────────
-async function loadData() {
+async function loadData(isRefresh = false) {
     try {
         await Promise.all([loadLeads(), loadJobRuns()]);
     } catch (err) {
@@ -109,7 +109,10 @@ async function loadData() {
         try { loadDemoHealthData(); } catch(e) { console.error('Demo health failed:', e); }
     } finally {
         hideSpinner();
-        try { switchTab('overview'); } catch(e) { console.error('switchTab failed:', e); }
+        // Only switch to overview on the initial page load, not on manual refresh
+        if (!isRefresh) {
+            try { switchTab('overview'); } catch(e) { console.error('switchTab failed:', e); }
+        }
     }
 }
 
@@ -170,7 +173,7 @@ function onLeadsLoaded() {
 
 function refreshData() {
     showToast('Refreshing data...');
-    loadData();
+    loadData(true);
 }
 
 // ── Lead Grid ──────────────────────────────────────────────────────────
