@@ -856,7 +856,7 @@ document.addEventListener('keydown', (e) => {
 
 // ── Stats ──────────────────────────────────────────────────────────────
 function updateStats() {
-    const counts = { total: recentLeads.length, new: 0, approved: 0, rejected: 0, exported: 0, highScore: 0 };
+    const counts = { total: recentLeads.length, new: 0, approved: 0, rejected: 0, highScore: 0 };
     recentLeads.forEach(l => {
         const s = l.lead_status || 'new';
         if (counts[s] !== undefined) counts[s]++;
@@ -867,7 +867,6 @@ function updateStats() {
     document.getElementById('statNew').querySelector('p').textContent = counts.new.toLocaleString();
     document.getElementById('statApproved').querySelector('p').textContent = counts.approved.toLocaleString();
     document.getElementById('statRejected').querySelector('p').textContent = counts.rejected.toLocaleString();
-    document.getElementById('statExported').querySelector('p').textContent = counts.exported.toLocaleString();
     document.getElementById('statHighScore').querySelector('p').textContent = counts.highScore.toLocaleString();
 }
 
