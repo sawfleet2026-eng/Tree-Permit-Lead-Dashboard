@@ -1244,10 +1244,6 @@ function initHistoricalGrid() {
             width: 150, minWidth: 130,
         },
         {
-            field: 'owner_name', headerName: 'Owner',
-            width: 160, minWidth: 130,
-        },
-        {
             field: 'contractor_name', headerName: 'Contractor',
             width: 160, minWidth: 130,
         },
