@@ -293,13 +293,15 @@ function _updateLastSyncChip() {
     }
 
     if (latestFinished) {
-        const formatted = latestFinished.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            + ' at '
-            + latestFinished.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        text.textContent = `Pipeline synced: ${formatted}`;
+        const now = new Date();
+        const isToday = latestFinished.toDateString() === now.toDateString();
+        const timeStr = latestFinished.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const display = isToday
+            ? `Last synced: ${timeStr}`
+            : `Last synced: ${latestFinished.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${timeStr}`;
+        text.textContent = display;
     } else {
-        // No job runs in DB yet — show a neutral waiting state
-        text.textContent = 'Awaiting first pipeline run';
+        text.textContent = 'Awaiting first sync';
     }
     chip.classList.remove('hidden');
 }
