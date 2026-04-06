@@ -1,48 +1,93 @@
-# 🌳 Tree Permit Lead Discovery — Dashboard# Tree Permit Lead Discovery — Dashboard
+# 🌳 Tree Permit Lead Discovery — Dashboard# 🌳 Tree Permit Lead Discovery — Dashboard# Tree Permit Lead Discovery — Dashboard
 
 
 
-> **Live:** [poornimaramakrishnan.github.io/lead-dashboard](https://poornimaramakrishnan.github.io/lead-dashboard/)**Live:** https://poornimaramakrishnan.github.io/lead-dashboard/
+> **Live:** [sawfleet2026-eng.github.io/Tree-Permit-Lead-Dashboard](https://sawfleet2026-eng.github.io/Tree-Permit-Lead-Dashboard/)
 
 
 
-Operational dashboard for the Tree Permit Lead Discovery System. DisplaysOperational dashboard for the Tree Permit Lead Discovery System. Displays permit leads sourced from Miami-Dade DERM, Fort Lauderdale, and City of Miami via an automated daily pipeline.
-
-tree-related building permit leads sourced from Miami-Dade DERM, Fort Lauderdale,
-
-and City of Miami via an automated pipeline that runs every 15 minutes.## Features
+Operational dashboard for the Tree Permit Lead Discovery System. Displays tree-related building permit leads from Miami-Dade DERM, Fort Lauderdale, and City of Miami — collected automatically every 15 minutes by the pipeline.> **Live:** [poornimaramakrishnan.github.io/lead-dashboard](https://poornimaramakrishnan.github.io/lead-dashboard/)**Live:** https://poornimaramakrishnan.github.io/lead-dashboard/
 
 
 
----- **Lead table** — AG Grid with sort, filter, pagination, and global search
+---
 
-- **Approve / Reject / Export** — single-row and bulk actions synced to Supabase
+
+
+## FeaturesOperational dashboard for the Tree Permit Lead Discovery System. DisplaysOperational dashboard for the Tree Permit Lead Discovery System. Displays permit leads sourced from Miami-Dade DERM, Fort Lauderdale, and City of Miami via an automated daily pipeline.
+
+
+
+- **Lead Table** — sortable, filterable grid with global search (AG Grid)tree-related building permit leads sourced from Miami-Dade DERM, Fort Lauderdale,
+
+- **Approve / Reject / Export** — single or bulk actions, synced to Supabase in real time
+
+- **Overview Charts** — daily trend, source breakdown, score distributionand City of Miami via an automated pipeline that runs every 15 minutes.## Features
+
+- **Map View** — geocoded leads on an interactive Leaflet map
+
+- **System Health** — pipeline run history, source status, error tracking
+
+- **Hot Leads** — top 10 highest-scored leads at a glance
+
+- **Historical Data** — browse leads older than 90 days---- **Lead table** — AG Grid with sort, filter, pagination, and global search
+
+- **Email Subscriptions** — opt in to daily digest directly from the dashboard
+
+- **Dark Mode** — one-click toggle, persisted across sessions- **Approve / Reject / Export** — single-row and bulk actions synced to Supabase
+
+- **Authentication** — write actions are password-protected
 
 ## Features- **Overview charts** — daily timeline, source breakdown, score distribution
 
+---
+
 - **Map view** — Leaflet pins for all geocoded leads
+
+## Tech Stack
 
 | Feature | Description |- **System health** — pipeline job run history and source status
 
-|---------|-------------|- **Hot Leads panel** — top 10 highest-scored leads at a glance
+| Layer | Technology |
 
-| **Lead Table** | AG Grid with sort, filter, pagination, and global search |- **Historical Data tab** — browse leads older than 90 days
+|-------|------------||---------|-------------|- **Hot Leads panel** — top 10 highest-scored leads at a glance
 
-| **Approve / Reject / Export** | Single-row and bulk actions synced to Supabase in real time |- **Dark mode** — persisted via localStorage
+| UI | Tailwind CSS, AG Grid, Chart.js, Leaflet |
 
-| **Overview Charts** | Daily timeline, source breakdown, and score distribution (Chart.js) |- **Authentication** — password-protected write actions (approve/reject/export/email)
+| Data | Supabase (PostgreSQL + PostgREST) || **Lead Table** | AG Grid with sort, filter, pagination, and global search |- **Historical Data tab** — browse leads older than 90 days
 
-| **Map View** | Leaflet map with clustered pins for all geocoded leads |- **Email subscriptions** — daily digest opt-in via Cloudflare Worker
+| API Proxy | Cloudflare Worker (auth + write operations) |
 
-| **System Health** | Pipeline job run history, source status, and error tracking |
+| Hosting | GitHub Pages — zero build step || **Approve / Reject / Export** | Single-row and bulk actions synced to Supabase in real time |- **Dark mode** — persisted via localStorage
 
-| **Hot Leads Panel** | Top 10 highest-scored leads at a glance |## Stack
 
-| **Historical Data** | Browse leads older than 90 days in a dedicated tab |
 
-| **Dark Mode** | One-click toggle, persisted via `localStorage` || Layer | Technology |
+---| **Overview Charts** | Daily timeline, source breakdown, and score distribution (Chart.js) |- **Authentication** — password-protected write actions (approve/reject/export/email)
 
-| **Authentication** | Password-protected write actions via Cloudflare Worker ||---|---|
+
+
+## Files| **Map View** | Leaflet map with clustered pins for all geocoded leads |- **Email subscriptions** — daily digest opt-in via Cloudflare Worker
+
+
+
+| File | Purpose || **System Health** | Pipeline job run history, source status, and error tracking |
+
+|------|---------|
+
+| `index.html` | Single-page app shell || **Hot Leads Panel** | Top 10 highest-scored leads at a glance |## Stack
+
+| `app.js` | All dashboard logic — data, grid, charts, map, actions |
+
+| `styles.css` | Custom styles and theme variables || **Historical Data** | Browse leads older than 90 days in a dedicated tab |
+
+
+
+---| **Dark Mode** | One-click toggle, persisted via `localStorage` || Layer | Technology |
+
+
+
+**Private pipeline repo:** [Tree-Permit-Lead-Pipeline](https://github.com/sawfleet2026-eng/Tree-Permit-Lead-Pipeline) (GitHub Actions, Python workers, tests)| **Authentication** | Password-protected write actions via Cloudflare Worker ||---|---|
+
 
 | **Email Subscriptions** | Daily digest opt-in — subscribe directly from the dashboard || UI | Tailwind CSS, AG Grid Community, Chart.js, Leaflet |
 
