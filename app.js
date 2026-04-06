@@ -272,14 +272,11 @@ async function loadData(isRefresh = false) {
 }
 
 /**
- * loadLeads() — Three separate queries, merged client-side:
- *  1. DERM recent  → miami_dade_derm WHERE permit_date >= 90 days ago
- *                    (DERM permit_date is the meaningful "work is happening now" date for this source)
- *  2. Non-DERM recent → all other sources WHERE discovered_at >= 90 days ago
- *                    (permit_date for these can lag or be irrelevant; discovered_at is reliable)
- *  3. Historical   → ALL records paginated → populates allLeads (Historical tab only)
+ * loadLeads() — Two separate queries, merged client-side:
+ *  1. Recent      → ALL sources WHERE permit_date >= 90 days ago
+ *  2. Historical  → ALL records paginated → populates allLeads (Historical tab only)
  *
- * Both recent result sets are merged, deduped by id, then sorted by discovered_at desc.
+ * Recent results are sorted by permit_date desc.
  */
 async function loadLeads() {
     if (!supabaseClient) {
@@ -290,7 +287,6 @@ async function loadLeads() {
     try {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 90);
-        const cutoffIso = cutoff.toISOString();
         const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD for permit_date comparison
 
         const pageSize = 1000;
@@ -309,12 +305,11 @@ async function loadLeads() {
             return rows;
         }
 
-        // ── Query 1: DERM recent — use permit_date as the 90-day signal ──
-        const dermRecent = await fetchAllPages((from, to) =>
+        // ── Query 1: All recent leads — use permit_date as the 90-day signal ──
+        const allRecent = await fetchAllPages((from, to) =>
             supabaseClient
                 .from('leads')
                 .select('*')
-                .eq('source_name', 'miami_dade_derm')
                 .gte('permit_date', cutoffDate)
                 .not('address', 'is', null)
                 .neq('address', '')
@@ -322,30 +317,9 @@ async function loadLeads() {
                 .range(from, to)
         );
 
-        // ── Query 2: Non-DERM recent — use discovered_at as the 90-day signal ──
-        const nonDermRecent = await fetchAllPages((from, to) =>
-            supabaseClient
-                .from('leads')
-                .select('*')
-                .neq('source_name', 'miami_dade_derm')
-                .gte('discovered_at', cutoffIso)
-                .not('address', 'is', null)
-                .neq('address', '')
-                .order('discovered_at', { ascending: false })
-                .range(from, to)
-        );
+        recentLeads = allRecent;
 
-        // Merge + dedupe by id, sort by discovered_at desc
-        const seen = new Set();
-        const merged = [...dermRecent, ...nonDermRecent].filter(l => {
-            if (seen.has(l.id)) return false;
-            seen.add(l.id);
-            return true;
-        });
-        merged.sort((a, b) => (b.discovered_at || '').localeCompare(a.discovered_at || ''));
-        recentLeads = merged;
-
-        // ── Query 3: All leads for Historical tab (paginated, no date filter) ──
+        // ── Query 2: All leads for Historical tab (paginated, no date filter) ──
         allLeads = await fetchAllPages((from, to) =>
             supabaseClient
                 .from('leads')
