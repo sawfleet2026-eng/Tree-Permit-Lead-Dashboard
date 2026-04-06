@@ -272,16 +272,35 @@ async function loadData(isRefresh = false) {
     }
 }
 
-/** Update the "Last synced" chip in the nav bar with the current local time. */
+/** Update the "Last pipeline sync" chip in the nav bar.
+ *  Uses the most recent finished_at from job_runs (real pipeline time).
+ *  Falls back to current time only if no job_runs are available yet.
+ */
 function _updateLastSyncChip() {
     const chip = document.getElementById('lastSyncChip');
     const text = document.getElementById('lastSyncText');
     if (!chip || !text) return;
-    const now = new Date();
-    const formatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-        + ' at '
-        + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    text.textContent = `Last synced: ${formatted}`;
+
+    // Find the latest successful finished_at across all job runs
+    let latestFinished = null;
+    if (allJobRuns && allJobRuns.length > 0) {
+        for (const run of allJobRuns) {
+            if (run.finished_at) {
+                const t = new Date(run.finished_at);
+                if (!latestFinished || t > latestFinished) latestFinished = t;
+            }
+        }
+    }
+
+    if (latestFinished) {
+        const formatted = latestFinished.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            + ' at '
+            + latestFinished.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        text.textContent = `Pipeline synced: ${formatted}`;
+    } else {
+        // No job runs in DB yet — show a neutral waiting state
+        text.textContent = 'Awaiting first pipeline run';
+    }
     chip.classList.remove('hidden');
 }
 
