@@ -264,11 +264,25 @@ async function loadData(isRefresh = false) {
         try { loadDemoHealthData(); } catch(e) { console.error('Demo health failed:', e); }
     } finally {
         hideSpinner();
+        _updateLastSyncChip();
         // Only switch to overview on the initial page load, not on manual refresh
         if (!isRefresh) {
             try { switchTab('overview'); } catch(e) { console.error('switchTab failed:', e); }
         }
     }
+}
+
+/** Update the "Last synced" chip in the nav bar with the current local time. */
+function _updateLastSyncChip() {
+    const chip = document.getElementById('lastSyncChip');
+    const text = document.getElementById('lastSyncText');
+    if (!chip || !text) return;
+    const now = new Date();
+    const formatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        + ' at '
+        + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    text.textContent = `Last synced: ${formatted}`;
+    chip.classList.remove('hidden');
 }
 
 /**
