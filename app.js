@@ -47,6 +47,37 @@ let historicalSourceFilter = '';  // '' = all, else source_name value
 // ── Authentication State ───────────────────────────────────────────────
 let isAuthenticated = false;
 
+// Client-side fallback auth (SHA-256 hash of "username:password").
+// Used when Cloudflare Worker is unreachable (Bot Fight Mode, network errors, etc.)
+const _AUTH_HASH = '230e2de24881984d4e6ec5c7a0c08297960db04ba04735c34f1a8cd4657213ff';
+
+/** Compute SHA-256 hex digest of a string (async, uses Web Crypto API) */
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Toggle password field visibility */
+function togglePasswordVisibility() {
+    const field = document.getElementById('loginPassword');
+    const showIcon = document.getElementById('eyeIconShow');
+    const hideIcon = document.getElementById('eyeIconHide');
+    const btn = document.getElementById('togglePasswordBtn');
+    if (!field) return;
+    if (field.type === 'password') {
+        field.type = 'text';
+        if (showIcon) showIcon.classList.add('hidden');
+        if (hideIcon) hideIcon.classList.remove('hidden');
+        if (btn) btn.title = 'Hide password';
+    } else {
+        field.type = 'password';
+        if (showIcon) showIcon.classList.remove('hidden');
+        if (hideIcon) hideIcon.classList.add('hidden');
+        if (btn) btn.title = 'Show password';
+    }
+}
+
 /** Check if user has a valid session on page load. */
 function initAuth() {
     const session = sessionStorage.getItem('authSession');
@@ -127,11 +158,15 @@ function openLoginModal() {
 function closeLoginModal() {
     const modal = document.getElementById('loginModal');
     if (modal) modal.classList.add('hidden');
-    // Clear fields
+    // Clear fields and reset password visibility
     const u = document.getElementById('loginUsername');
     const p = document.getElementById('loginPassword');
     if (u) u.value = '';
-    if (p) p.value = '';
+    if (p) { p.value = ''; p.type = 'password'; }
+    const showIcon = document.getElementById('eyeIconShow');
+    const hideIcon = document.getElementById('eyeIconHide');
+    if (showIcon) showIcon.classList.remove('hidden');
+    if (hideIcon) hideIcon.classList.add('hidden');
     const err = document.getElementById('loginError');
     if (err) err.classList.add('hidden');
 }
@@ -150,21 +185,54 @@ async function doLogin() {
     // Disable button during request
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
 
+    /** Shared success handler */
+    function _onLoginSuccess() {
+        isAuthenticated = true;
+        sessionStorage.setItem('authSession', JSON.stringify({ user: username, ts: Date.now() }));
+        applyAuthState();
+        closeLoginModal();
+        showToast(`Welcome, ${username}!`);
+    }
+
+    /** Client-side SHA-256 fallback (used when Worker is unreachable) */
+    async function _tryLocalFallback() {
+        try {
+            const hash = await sha256(`${username}:${password}`);
+            if (hash === _AUTH_HASH) {
+                _onLoginSuccess();
+                return true;
+            }
+        } catch (e) { console.warn('Local fallback hash check failed:', e); }
+        return false;
+    }
+
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
         const resp = await fetch(`${CONFIG.WORKER_URL}/api/auth`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
+            signal: controller.signal,
         });
+        clearTimeout(timeout);
+
+        // Cloudflare Bot Fight Mode returns non-JSON 403/1010 responses
+        const contentType = resp.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            console.warn('Worker returned non-JSON (likely CF Bot Fight Mode), trying local fallback');
+            const ok = await _tryLocalFallback();
+            if (!ok && errEl) {
+                errEl.textContent = 'Invalid username or password.';
+                errEl.classList.remove('hidden');
+            }
+            return;
+        }
 
         const data = await resp.json().catch(() => ({}));
 
         if (resp.ok && data.success) {
-            isAuthenticated = true;
-            sessionStorage.setItem('authSession', JSON.stringify({ user: username, ts: Date.now() }));
-            applyAuthState();
-            closeLoginModal();
-            showToast(`Welcome, ${username}!`);
+            _onLoginSuccess();
         } else {
             if (errEl) {
                 errEl.textContent = data.error || 'Invalid username or password.';
@@ -172,9 +240,11 @@ async function doLogin() {
             }
         }
     } catch (err) {
-        console.error('Login request failed:', err);
-        if (errEl) {
-            errEl.textContent = 'Unable to connect to authentication server. Please try again.';
+        console.warn('Worker auth request failed, trying local fallback:', err.message);
+        // Network error, CORS block, timeout, etc. → try client-side fallback
+        const ok = await _tryLocalFallback();
+        if (!ok && errEl) {
+            errEl.textContent = 'Invalid username or password.';
             errEl.classList.remove('hidden');
         }
     } finally {
