@@ -224,10 +224,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadData().finally(() => clearTimeout(spinnerTimer));
 
-    // Auto-refresh the sync chip every 3 minutes in the background
-    // (lightweight — fetches only the latest finished_at, no auth needed)
-    setInterval(_pollSyncTime, 3 * 60 * 1000);
-
     // Wire up global search
     const searchInput = document.getElementById('globalSearch');
     if (searchInput) {
@@ -288,7 +284,8 @@ function _updateLastSyncChip() {
     let latestFinished = null;
     if (allJobRuns && allJobRuns.length > 0) {
         for (const run of allJobRuns) {
-            if (run.finished_at) {
+            // ONLY consider the actual overarching pipeline sync jobs
+            if (run.source_name === 'pipeline_sync' && run.finished_at) {
                 const t = new Date(run.finished_at);
                 if (!latestFinished || t > latestFinished) latestFinished = t;
             }
