@@ -519,6 +519,7 @@ function onLeadsLoaded() {
     renderCharts();
     renderRecentLeads();
     renderHotLeads();
+    syncOverviewPanelHeight();
     updateNotifications();
     const badge = document.getElementById('leadCountBadge');
     if (badge) badge.textContent = recentLeads.length;
@@ -1157,6 +1158,22 @@ function renderCharts() {
     renderSourcesChart();
     renderScoresChart();
 }
+
+// ── Overview panel height sync ─────────────────────────────────────────
+function syncOverviewPanelHeight() {
+    // On desktop (lg), measure the left charts column and set a CSS variable
+    // so the side panels match its height exactly.
+    const grid = document.getElementById('overviewGrid');
+    if (!grid || window.innerWidth < 1024) return;
+    const leftCol = grid.querySelector('.lg\\:col-span-6');
+    if (!leftCol) return;
+    requestAnimationFrame(() => {
+        const h = leftCol.offsetHeight;
+        if (h > 0) grid.style.setProperty('--overview-left-h', h + 'px');
+    });
+}
+// Re-sync on resize
+window.addEventListener('resize', syncOverviewPanelHeight);
 
 function getChartColors() {
     const dark = isDark();
