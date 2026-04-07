@@ -306,6 +306,7 @@
     padding: 10px 12px; border-radius: 10px;
     border: 1px solid #f3f4f6; cursor: pointer;
     transition: all 0.15s ease;
+    text-transform: capitalize;
 }
 .record-item:hover { background: #f9fafb; border-color: #e5e7eb; }
 [data-theme="dark"] .record-item { border-color: #1f2937; }
