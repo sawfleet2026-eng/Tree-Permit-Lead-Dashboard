@@ -604,10 +604,11 @@ document.addEventListener('click', (e) => {
 
 // ── Refresh with cooldown ──────────────────────────────────────────────
 const REFRESH_COOLDOWN_MS = 30_000; // 30 seconds
+const PIPELINE_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 let lastRefreshAt = 0;
 let refreshCooldownTimer = null;
 
-function refreshData() {
+async function refreshData() {
     if (!requireAuth('refresh data')) return;
 
     const now = Date.now();
@@ -621,8 +622,38 @@ function refreshData() {
 
     lastRefreshAt = now;
     _startRefreshCooldownUI();
-    showToast('Refreshing data...');
-    loadData(true);
+    showToast('Refreshing local data...', 'info');
+    await loadData(true);
+
+    // Then handle the 15-minute pipeline trigger
+    let lastPipelineTriggerAt = parseInt(localStorage.getItem('lastPipelineTriggerAt') || '0', 10);
+    const pipelineElapsed = now - lastPipelineTriggerAt;
+
+    if (pipelineElapsed >= PIPELINE_COOLDOWN_MS || lastPipelineTriggerAt === 0) {
+        const workerUrl = CONFIG.WORKER_URL;
+        if (workerUrl && !workerUrl.includes('YOUR_SUBDOMAIN')) {
+            showToast('Triggering full pipeline synchronization from source servers...', 'info');
+            try {
+                const resp = await fetch(`${workerUrl}/api/dispatch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workflow: 'daily_pipeline.yml' })
+                });
+
+                if (resp.ok) {
+                    localStorage.setItem('lastPipelineTriggerAt', now.toString());
+                    showToast('Pipeline explicitly triggered! New leads will arrive in ~2-5 mins.', 'success', 8000);
+                } else {
+                    console.error('Failed to trigger daily pipeline:', await resp.text());
+                }
+            } catch (err) {
+                console.error('Dispatch trigger error', err);
+            }
+        }
+    } else {
+        const minutesLeft = Math.ceil((PIPELINE_COOLDOWN_MS - pipelineElapsed) / 60000);
+        showToast(`Database refreshed. Source sync cooldown: ~${minutesLeft} mins.`, 'success');
+    }
 }
 
 /** Grey out the refresh button and show a countdown during the cooldown period */
