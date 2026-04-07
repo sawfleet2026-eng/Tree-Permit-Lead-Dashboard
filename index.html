@@ -187,7 +187,14 @@
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 <div class="chart-card">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Score Distribution <button class="score-info-btn" onclick="showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        Score Distribution
+                        <button class="score-info-btn text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors" onclick="showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </h3>
                     <div style="position:relative; height:160px;">
                         <canvas id="scoresChart"></canvas>
                     </div>
@@ -197,7 +204,7 @@
                     <div id="recentLeads" class="space-y-2 max-h-[160px] overflow-y-auto pr-2"></div>
                 </div>
                 <div class="chart-card">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">🔥 Hot Leads <span class="text-xs font-normal text-gray-400">(Score 7+)</span> <button class="score-info-btn" onclick="showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">🔥 Hot Leads <span class="text-xs font-normal text-gray-400">(Score 7+)</span></h3>
                     <div id="hotLeads" class="space-y-2 max-h-[160px] overflow-y-auto pr-2"></div>
                 </div>
             </div>

@@ -178,17 +178,15 @@
     align-items: center;
 }
 .score-info-btn {
+    background: none; border: none; padding: 0; margin-left: 4px;
+    color: #9ca3af; cursor: pointer; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: #e5e7eb; color: #6b7280;
-    font-size: 10px; font-weight: 700; line-height: 1;
-    cursor: pointer; border: none; padding: 0;
-    margin-left: 4px; flex-shrink: 0;
-    transition: background 0.15s, color 0.15s;
+    transition: color 0.15s ease;
 }
-.score-info-btn:hover { background: #059669; color: #fff; }
-[data-theme="dark"] .score-info-btn { background: #374151; color: #9ca3af; }
-[data-theme="dark"] .score-info-btn:hover { background: #059669; color: #fff; }
+.score-info-btn:hover { color: #059669; }
+[data-theme="dark"] .score-info-btn { color: #6b7280; }
+[data-theme="dark"] .score-info-btn:hover { color: #34d399; }
+.score-info-btn svg { outline: none; }
 
 .score-popover {
     display: none; position: fixed; z-index: 9999;

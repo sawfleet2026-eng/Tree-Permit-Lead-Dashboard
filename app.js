@@ -660,7 +660,7 @@ function initLeadGrid() {
         },
         {
             field: 'lead_score', headerName: 'Score',
-            width: 90, minWidth: 80,
+            width: 100, minWidth: 100, maxWidth: 110, suppressSizeToFit: true,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
@@ -791,7 +791,11 @@ document.addEventListener('click', (e) => {
 });
 
 function _scoreHeaderWithInfo(label) {
-    return `<span class="score-info-wrap">${label}<button class="score-info-btn" onclick="event.stopPropagation();showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></span>`;
+    return `<span class="score-info-wrap">${label}<button class="score-info-btn" onclick="event.stopPropagation();showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+        </svg>
+    </button></span>`;
 }
 
 /** Inject an ⓘ button into all AG Grid "Score" column headers inside a container */
@@ -803,7 +807,9 @@ function _injectScoreInfoBtn(container) {
                 const btn = document.createElement('button');
                 btn.className = 'score-info-btn';
                 btn.title = 'Score legend';
-                btn.textContent = 'i';
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>`;
                 btn.onclick = (e) => { e.stopPropagation(); showScorePopover(e); };
                 btn.onmouseenter = (e) => showScorePopover(e);
                 el.style.display = 'inline-flex';
@@ -837,8 +843,8 @@ function statusRenderer(params) {
 function actionsRenderer(params) {
     const id = params.data.id;
     return `
-        <span class="row-action-btn row-action-approve" title="Approve" onclick="updateLeadStatus('${id}','approved')">✓</span>
-        <span class="row-action-btn row-action-reject" title="Reject" onclick="updateLeadStatus('${id}','rejected')">✕</span>
+        <span class="row-action-btn row-action-approve" title="Approve" onclick="event.stopPropagation(); updateLeadStatus('${id}','approved')">✓</span>
+        <span class="row-action-btn row-action-reject" title="Reject" onclick="event.stopPropagation(); updateLeadStatus('${id}','rejected')">✕</span>
     `;
 }
 
@@ -908,9 +914,9 @@ function globalSearchFilter() {
 async function updateLeadStatus(id, status) {
     if (!requireAuth('update lead status')) return;
     try {
-        const lead = allLeads.find(l => l.id === id) || recentLeads.find(l => l.id === id);
+        const lead = allLeads.find(l => String(l.id) === String(id)) || recentLeads.find(l => String(l.id) === String(id));
         if (supabaseClient && lead) {
-            const { error } = await supabaseClient.from('leads').update({ lead_status: status }).eq('id', id);
+            const { error } = await supabaseClient.from('leads').update({ lead_status: status }).eq('id', lead.id);
             if (error) throw error;
         }
         if (lead) {
@@ -1025,7 +1031,7 @@ function openDetail(lead) {
 }
 
 function openDetailById(id) {
-    const lead = allLeads.find(l => l.id === id) || recentLeads.find(l => l.id === id);
+    const lead = allLeads.find(l => String(l.id) === String(id)) || recentLeads.find(l => String(l.id) === String(id));
     if (lead) openDetail(lead);
 }
 
@@ -1415,7 +1421,7 @@ function initHistoricalGrid() {
     const columnDefs = [
         {
             field: 'lead_score', headerName: 'Score',
-            width: 90, minWidth: 80,
+            width: 100, minWidth: 100, maxWidth: 110, suppressSizeToFit: true,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
