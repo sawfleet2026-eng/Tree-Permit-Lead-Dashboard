@@ -693,7 +693,7 @@ function initLeadGrid() {
         },
         {
             field: 'lead_score', headerName: 'Score',
-            width: 100, minWidth: 100, maxWidth: 110, suppressSizeToFit: true,
+            width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
@@ -1454,7 +1454,7 @@ function initHistoricalGrid() {
     const columnDefs = [
         {
             field: 'lead_score', headerName: 'Score',
-            width: 100, minWidth: 100, maxWidth: 110, suppressSizeToFit: true,
+            width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
