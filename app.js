@@ -12,10 +12,9 @@
 //                   Also set DASHBOARD_URL GitHub variable to:
 //                   https://<github-username>.github.io/<dashboard-repo>/
 const CONFIG = {
-    SUPABASE_URL: 'https://jfvkumjshrtiazitlidx.supabase.co',
-    SUPABASE_KEY: 'sb_publishable_8lkctRFvWQgIWdVFBLFsaQ_Ds0xgkwQ',
-    // Cloudflare Worker URL — update after running: npx wrangler deploy
-    WORKER_URL: 'https://lead-pipeline-api.tree-permit-lead-pipeline.workers.dev',
+    SUPABASE_URL: '{{SUPABASE_URL}}',
+    SUPABASE_KEY: '{{SUPABASE_KEY}}',
+    WORKER_URL: '{{WORKER_URL}}',
 };
 
 // ── Supabase Client ────────────────────────────────────────────────────
