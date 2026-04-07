@@ -53,6 +53,37 @@
 }
 [data-theme="dark"] .chart-card { background: #111827; border-color: #1f2937; }
 
+/* ── Overview Grid Layout ───────────────────────────────── */
+.overview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 24px;
+    grid-template-areas:
+        "timeline timeline recent  hot"
+        "scores   sources  recent  hot";
+}
+.overview-timeline { grid-area: timeline; }
+.overview-scores   { grid-area: scores; }
+.overview-sources  { grid-area: sources; }
+.overview-recent   { grid-area: recent; min-height: 0; }
+.overview-hot      { grid-area: hot;    min-height: 0; }
+
+/* On smaller screens stack everything */
+@media (max-width: 1023px) {
+    .overview-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+            "timeline"
+            "scores"
+            "sources"
+            "recent"
+            "hot";
+    }
+    .overview-recent, .overview-hot { max-height: 280px; }
+}
+
 /* ── Filter Input ───────────────────────────────────────── */
 .filter-input {
     width: 100%; padding: 8px 12px; border-radius: 10px;

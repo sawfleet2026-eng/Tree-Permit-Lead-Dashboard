@@ -1323,7 +1323,7 @@ function renderRecentLeads() {
     const recent = [...recentLeads]
         .filter(l => (l.lead_score || 0) >= 4)
         .sort((a, b) => (b.permit_date || '').localeCompare(a.permit_date || ''))
-        .slice(0, 8);
+        .slice(0, 20);
 
     if (recent.length === 0) {
         container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No high-value leads yet.</p>';
@@ -1355,7 +1355,7 @@ function renderHotLeads() {
     const hot = [...recentLeads]
         .filter(l => (l.lead_score || 0) >= 7)
         .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0) || (b.permit_date || '').localeCompare(a.permit_date || ''))
-        .slice(0, 8);
+        .slice(0, 20);
 
     if (hot.length === 0) {
         container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No hot leads yet.</p>';
