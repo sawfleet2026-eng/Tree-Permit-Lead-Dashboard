@@ -11,6 +11,50 @@
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── AG Grid horizontal scrollbar — always visible & touch-friendly ── */
+.ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+.ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar {
+    height: 10px;
+}
+.ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+.ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+.ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+    border: 1px solid transparent;
+    background-clip: content-box;
+}
+.ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track,
+.ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 5px;
+}
+[data-theme="dark"] .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+[data-theme="dark"] .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+[data-theme="dark"] .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track,
+[data-theme="dark"] .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+/* Firefox scrollbar for AG Grid */
+.ag-theme-custom .ag-body-horizontal-scroll-viewport,
+.ag-theme-custom .ag-center-cols-viewport {
+    scrollbar-width: auto;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
+[data-theme="dark"] .ag-theme-custom .ag-body-horizontal-scroll-viewport,
+[data-theme="dark"] .ag-theme-custom .ag-center-cols-viewport {
+    scrollbar-color: #64748b #1e293b;
+}
+
 /* ── Tab Buttons ────────────────────────────────────────── */
 .tab-btn {
     display: flex; align-items: center; gap: 6px;
@@ -124,6 +168,40 @@
 }
 .ag-theme-custom .ag-header-cell-label { font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
 .ag-theme-custom .ag-paging-panel { border-top: 1px solid var(--ag-border-color); padding: 8px 16px; }
+
+/* ── AG Grid Pagination — mobile-friendly ───────────────── */
+.ag-theme-custom .ag-paging-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 13px;
+    min-height: 44px;
+}
+.ag-theme-custom .ag-paging-button {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ag-theme-custom .ag-paging-button:hover {
+    background: rgba(5,150,105,0.1);
+}
+.ag-theme-custom .ag-paging-page-summary-panel {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+/* Page size selector styling */
+.ag-theme-custom .ag-paging-page-size .ag-select {
+    min-height: 32px;
+    border-radius: 6px;
+}
 
 /* ── Row action buttons (in AG Grid cells) ──────────────── */
 .row-action-btn {
@@ -445,13 +523,13 @@ body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !importa
     /* Tighter padding */
     main { padding-left: 12px; padding-right: 12px; padding-top: 16px; }
 
-    /* Nav bar */
-    nav .max-w-\[1600px\] { padding-left: 12px; padding-right: 12px; }
-    nav h1 { font-size: 15px; }
+    /* Nav bar — prevent overflow */
+    nav { overflow-x: hidden; }
+    nav .max-w-\[1600px\] { padding-left: 8px; padding-right: 8px; }
+    nav h1 { font-size: 14px; }
     nav p { font-size: 10px; }
-    nav .w-10.h-10 { width: 32px; height: 32px; font-size: 16px; }
 
-    /* Tab bar: smaller text, tighter padding */
+    /* Tab bar: smaller text, tighter padding, scrollable */
     .tab-btn {
         padding: 10px 10px;
         font-size: 12px;
@@ -477,6 +555,50 @@ body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !importa
     }
     .responsive-grid { height: clamp(350px, 55vh, 500px); }
     .responsive-map { height: clamp(280px, 50vh, 400px); }
+
+    /* AG Grid scrollbar — larger touch target on mobile */
+    .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+    .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar {
+        height: 14px;
+    }
+    .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+    .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-thumb {
+        background: #64748b;
+        border-radius: 7px;
+        border: 3px solid #f1f5f9;
+        background-clip: content-box;
+    }
+    [data-theme="dark"] .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+    [data-theme="dark"] .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border: 3px solid #1e293b;
+        background-clip: content-box;
+    }
+    /* Firefox scrollbar larger */
+    .ag-theme-custom .ag-body-horizontal-scroll-viewport,
+    .ag-theme-custom .ag-center-cols-viewport {
+        scrollbar-width: auto;
+    }
+
+    /* AG Grid pagination — compact for mobile */
+    .ag-theme-custom .ag-paging-panel {
+        padding: 6px 8px;
+        gap: 2px;
+        font-size: 11px;
+        min-height: 40px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .ag-theme-custom .ag-paging-button {
+        min-width: 32px;
+        min-height: 32px;
+    }
+    .ag-theme-custom .ag-paging-row-summary-panel {
+        font-size: 10px;
+    }
+    .ag-theme-custom .ag-paging-page-summary-panel {
+        font-size: 11px;
+    }
 
     /* Filter inputs */
     .filter-input { padding: 7px 10px; font-size: 12px; border-radius: 8px; }
@@ -511,6 +633,9 @@ body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !importa
 
     /* Toast */
     #toastNotification { right: 12px; bottom: 12px; left: 12px; }
+
+    /* Notification panel — fit mobile */
+    #notifPanel { width: min(320px, calc(100vw - 24px)); right: -8px; }
 }
 
 /* ── Tablet (640px – 1023px) ────────────────────────────── */
@@ -520,6 +645,14 @@ body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !importa
     .responsive-grid { height: clamp(400px, 55vh, 600px); }
     .responsive-map { height: clamp(350px, 50vh, 550px); }
     .overview-side-panel { height: 380px; }
+    /* AG Grid scrollbar — medium touch target */
+    .ag-theme-custom .ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+    .ag-theme-custom .ag-center-cols-viewport::-webkit-scrollbar {
+        height: 12px;
+    }
+    .ag-theme-custom .ag-paging-panel {
+        font-size: 12px;
+    }
 }
 
 /* ── Large screens (1600px+) ────────────────────────────── */
