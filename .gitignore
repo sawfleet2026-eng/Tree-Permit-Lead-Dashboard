@@ -57,6 +57,7 @@ yarn.lock
 .DS_Store
 Thumbs.db
 desktop.ini
+=
 
 # Test / CI artefacts
 .pytest_cache/
@@ -80,6 +81,11 @@ run_logs*/
 # Generated reports / artifacts
 Source_Validation_Report.html
 *_Report.html
+*_Manual.html
+User_Manual.html
+proposal/
+Permits_Data_Scrapping_Strategy.html
+*_Strategy.html
 
 # Other workspace files that shouldn't go to public repo
 dashboard/
