@@ -475,7 +475,7 @@ async function loadLeads() {
             supabaseClient
                 .from('leads')
                 .select('*')
-                .order('discovered_at', { ascending: false })
+                .order('permit_date', { ascending: false })
                 .range(from, to)
         );
 
@@ -697,7 +697,7 @@ function initLeadGrid() {
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellStyle: { textAlign: 'center' },
             cellRenderer: scoreRenderer,
-            sort: 'desc', sortIndex: 0,
+            sort: 'desc', sortIndex: 1,
         },
         {
             field: 'address', headerName: 'Address',
@@ -712,7 +712,7 @@ function initLeadGrid() {
             field: 'permit_date', headerName: 'Date',
             width: 120, minWidth: 110,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
-            sort: 'desc', sortIndex: 1,
+            sort: 'desc', sortIndex: 0,
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
@@ -1341,12 +1341,11 @@ function renderRecentLeads() {
     if (!container) return;
 
     const recent = [...recentLeads]
-        .filter(l => (l.lead_score || 0) >= 4)
         .sort((a, b) => (b.permit_date || '').localeCompare(a.permit_date || ''))
         .slice(0, 20);
 
     if (recent.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No high-value leads yet.</p>';
+        container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No recent leads yet.</p>';
         return;
     }
 
@@ -1477,7 +1476,7 @@ function initHistoricalGrid() {
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellStyle: { textAlign: 'center' },
             cellRenderer: scoreRenderer,
-            sort: 'desc', sortIndex: 0,
+            sort: 'desc', sortIndex: 1,
         },
         {
             field: 'source_name', headerName: 'Source',
@@ -1505,7 +1504,7 @@ function initHistoricalGrid() {
             field: 'permit_date', headerName: 'Permit Date',
             width: 120, minWidth: 110,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
-            sort: 'desc', sortIndex: 1,
+            sort: 'desc', sortIndex: 0,
         },
         {
             field: 'permit_status', headerName: 'Permit Status',
