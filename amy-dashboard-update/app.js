@@ -43,6 +43,53 @@ let chartScores = null;
 let globalSearchTerm = '';
 let historicalSourceFilter = '';  // '' = all, else source_name value
 
+// ── Scoring Rules (loaded from DB, fallback to defaults) ───────────────
+const SCORING_DEFAULTS = {
+    tree_removal_bonus: 5,
+    vegetation_removal_bonus: 4,
+    recency_bonus: 3,
+    recency_days_threshold: 7,
+    large_parcel_bonus: 2,
+    parcel_acres_threshold: 0.50,
+    right_of_way_bonus: 1,
+    derm_tier1_days_min: 1,
+    derm_tier1_days_max: 10,
+    derm_tier1_bonus: 1,
+    derm_tier2_days_min: 11,
+    derm_tier2_days_max: 30,
+    derm_tier2_bonus: 2,
+    derm_tier3_days_min: 31,
+    derm_tier3_days_max: 60,
+    derm_tier3_bonus: 1,
+    contractor_penalty: 2,
+    derm_no_address_penalty: 3,
+    intended_decision_penalty: 1,
+};
+// Rule metadata: [min, max, step, isDecimal]
+const SCORING_META = {
+    tree_removal_bonus:          [0, 10, 1, false],
+    vegetation_removal_bonus:    [0, 10, 1, false],
+    recency_bonus:               [0, 10, 1, false],
+    recency_days_threshold:      [1, 90, 1, false],
+    large_parcel_bonus:          [0, 10, 1, false],
+    parcel_acres_threshold:      [0.10, 50.00, 0.10, true],
+    right_of_way_bonus:          [0, 10, 1, false],
+    derm_tier1_days_min:         [0, 365, 1, false],
+    derm_tier1_days_max:         [1, 365, 1, false],
+    derm_tier1_bonus:            [0, 10, 1, false],
+    derm_tier2_days_min:         [0, 365, 1, false],
+    derm_tier2_days_max:         [1, 365, 1, false],
+    derm_tier2_bonus:            [0, 10, 1, false],
+    derm_tier3_days_min:         [0, 365, 1, false],
+    derm_tier3_days_max:         [1, 365, 1, false],
+    derm_tier3_bonus:            [0, 10, 1, false],
+    contractor_penalty:          [0, 10, 1, false],
+    derm_no_address_penalty:     [0, 10, 1, false],
+    intended_decision_penalty:   [0, 10, 1, false],
+};
+let scoringRules = { ...SCORING_DEFAULTS };
+let scoringRulesDirty = false;
+
 // ── Authentication State ───────────────────────────────────────────────
 let isAuthenticated = false;
 
@@ -332,7 +379,7 @@ function isDark() {
 // ── Data Loading ───────────────────────────────────────────────────────
 async function loadData(isRefresh = false) {
     try {
-        await Promise.all([loadLeads(), loadJobRuns()]);
+        await Promise.all([loadLeads(), loadJobRuns(), loadScoringRules()]);
     } catch (err) {
         console.error('loadData error:', err);
         try { loadDemoData(); } catch(e) { console.error('Demo leads failed:', e); }
@@ -770,8 +817,10 @@ function initLeadGrid() {
     leadGridApi = agGrid.createGrid(gridDiv, gridOptions);
 }
 
-// ── Score Legend Popover ────────────────────────────────────────────────
-const _SCORE_POPOVER_HTML = `
+// ── Score Legend Popover (dynamic — reads scoringRules) ─────────────────
+function _buildScorePopoverHTML() {
+    const r = scoringRules;
+    return `
 <div id="scorePopover" class="score-popover" onmouseleave="hideScorePopover()">
     <h4>📊 Lead Score Legend</h4>
     <div class="score-popover-row">
@@ -788,24 +837,32 @@ const _SCORE_POPOVER_HTML = `
     </div>
     <div class="score-popover-calc">
         <strong>How scores are calculated:</strong><br>
-        +5 pts — Tree removal / arbor permit<br>
-        +4 pts — Vegetation removal permit<br>
-        +3 pts — Filed in the last 7 days (non-DERM)<br>
-        +3 pts — DERM permit 21–90 days old (likely approved)<br>
-        +2 pts — Parcel &gt; 0.5 acres<br>
-        +1 pt&nbsp; — Right-of-way permit<br>
-        −2 pts — Contractor already assigned (Partnership Opp.)
+        +${r.tree_removal_bonus} pts — Tree removal / arbor permit<br>
+        +${r.vegetation_removal_bonus} pts — Vegetation removal permit<br>
+        +${r.recency_bonus} pts — Filed in the last ${r.recency_days_threshold} days (non-DERM)<br>
+        +${r.derm_tier1_bonus}/+${r.derm_tier2_bonus}/+${r.derm_tier3_bonus} pts — DERM tiered recency (${r.derm_tier1_days_min}–${r.derm_tier1_days_max}/${r.derm_tier2_days_min}–${r.derm_tier2_days_max}/${r.derm_tier3_days_min}–${r.derm_tier3_days_max} days)<br>
+        +${r.large_parcel_bonus} pts — Parcel &gt; ${r.parcel_acres_threshold} acres<br>
+        +${r.right_of_way_bonus} pt&nbsp; — Right-of-way permit<br>
+        −${r.intended_decision_penalty} pt&nbsp; — "Intended Decision" status (City of Miami Tree)<br>
+        −${r.contractor_penalty} pts — Contractor already assigned (Partnership Opp.)<br>
+        −${r.derm_no_address_penalty} pts — DERM permit with no address
     </div>
 </div>`;
+}
 
 let _scorePopoverEl = null;
 
 function _ensureScorePopover() {
     if (!_scorePopoverEl) {
-        document.body.insertAdjacentHTML('beforeend', _SCORE_POPOVER_HTML);
+        document.body.insertAdjacentHTML('beforeend', _buildScorePopoverHTML());
         _scorePopoverEl = document.getElementById('scorePopover');
     }
     return _scorePopoverEl;
+}
+
+/** Rebuild popover content (called after scoring rules change) */
+function _rebuildScorePopover() {
+    if (_scorePopoverEl) { _scorePopoverEl.remove(); _scorePopoverEl = null; }
 }
 
 function showScorePopover(evt) {
@@ -864,13 +921,15 @@ function _injectScoreInfoBtn(container) {
     }, 200);
 }
 
-// ── Live Lead Scoring (mirrors pipeline/scoring.py exactly) ───────────
+// ── Live Lead Scoring (mirrors pipeline/scoring.py — uses scoringRules) ──
 /**
  * Compute the lead score dynamically from the lead's fields.
- * See pipeline/scoring.py for the canonical source of truth.
+ * Uses the globally-loaded scoringRules object (loaded from DB or defaults).
+ * Scoring logic is identical to pipeline/scoring.py.
  */
 function computeLeadScore(lead) {
     if (!lead) return 0;
+    const r = scoringRules;
 
     const TREE_REMOVAL_TYPES = new Set([
         'TREE REMOVAL', 'TREE REMOVAL PERMIT', 'TREE PERMIT',
@@ -879,63 +938,75 @@ function computeLeadScore(lead) {
     const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
     const DERM_SOURCES = new Set(['miami_dade_derm']);
-    const DERM_MIN_DAYS = 21;
-    const DERM_MAX_DAYS = 90;
-    const CONTRACTOR_PENALTY = 2;
 
     const ptUpper = (lead.permit_type || '').trim().toUpperCase();
     const descLower = (lead.permit_description || '').toLowerCase();
 
     let score = 0;
 
-    if (TREE_REMOVAL_TYPES.has(ptUpper)) score += 5;
-    if (VEGETATION_TYPES.has(ptUpper)) score += 4;
-
+    // Tree removal / arbor bonus
+    if (TREE_REMOVAL_TYPES.has(ptUpper)) {
+        score += r.tree_removal_bonus;
+    }
+    // Vegetation removal bonus
+    if (VEGETATION_TYPES.has(ptUpper)) {
+        score += r.vegetation_removal_bonus;
+    }
+    // Description fallback (only when type gave nothing)
     if (score === 0) {
         if (['tree removal', 'remove tree', 'arbor', 'landscape tree removal', 'tree relocation']
                 .some(kw => descLower.includes(kw))) {
-            score += 5;
+            score += r.tree_removal_bonus;
         } else if (['vegetation removal', 'remove vegetation'].some(kw => descLower.includes(kw))) {
-            score += 4;
+            score += r.vegetation_removal_bonus;
         } else if (['dead tree', 'dangerous tree'].some(kw => descLower.includes(kw))) {
-            score += 5;
+            score += r.tree_removal_bonus;
         }
     }
 
+    // ── Recency / DERM tiered recency ──────────────────────────────────
     if (lead.permit_date) {
         const permitDt = new Date(lead.permit_date);
         if (!isNaN(permitDt)) {
             const ageDays = Math.floor((Date.now() - permitDt.getTime()) / 86400000);
             const isDerm = DERM_SOURCES.has((lead.source_name || '').toLowerCase());
             if (isDerm) {
-                if (ageDays >= DERM_MIN_DAYS && ageDays <= DERM_MAX_DAYS) score += 3;
+                if (ageDays >= r.derm_tier1_days_min && ageDays <= r.derm_tier1_days_max) {
+                    score += r.derm_tier1_bonus;
+                } else if (ageDays >= r.derm_tier2_days_min && ageDays <= r.derm_tier2_days_max) {
+                    score += r.derm_tier2_bonus;
+                } else if (ageDays >= r.derm_tier3_days_min && ageDays <= r.derm_tier3_days_max) {
+                    score += r.derm_tier3_bonus;
+                }
             } else {
-                if (ageDays <= 7) score += 3;
+                if (ageDays <= r.recency_days_threshold) {
+                    score += r.recency_bonus;
+                }
             }
         }
     }
 
+    // Right-of-way bonus
     if (ROW_KEYWORDS.some(kw => descLower.includes(kw)) || ptUpper.includes('RIGHT OF WAY')) {
-        score += 1;
+        score += r.right_of_way_bonus;
     }
 
+    // Contractor penalty
     if ((lead.contractor_name || '').trim()) {
-        score = Math.max(0, score - CONTRACTOR_PENALTY);
+        score = Math.max(0, score - r.contractor_penalty);
     }
 
-    // −3 DERM no-address penalty
-    // DERM records with no address cannot be geocoded or contacted — lower priority.
+    // DERM no-address penalty
     if (DERM_SOURCES.has((lead.source_name || '').toLowerCase()) && !(lead.address || '').trim()) {
-        score = Math.max(0, score - 3);
+        score = Math.max(0, score - r.derm_no_address_penalty);
     }
 
-    // −1 City of Miami "Intended Decision" penalty
-    // Pre-approval state — one point below a fully Approved permit.
+    // "Intended Decision" penalty (City of Miami Tree)
     if (
         (lead.source_name || '').toLowerCase() === 'city_of_miami_tree' &&
         (lead.permit_status || '').trim().toLowerCase() === 'intended decision'
     ) {
-        score = Math.max(0, score - 1);
+        score = Math.max(0, score - r.intended_decision_penalty);
     }
 
     return score;
@@ -1234,6 +1305,10 @@ function switchTab(tab) {
     // Re-render historical grid when switching to that tab (AG Grid needs visible container)
     if (tab === 'historical' && historicalGridApi) {
         setTimeout(() => historicalGridApi.sizeColumnsToFit && historicalGridApi.sizeColumnsToFit(), 100);
+    }
+    // Populate scoring rules UI when switching to that tab
+    if (tab === 'scoring') {
+        populateScoringRulesUI();
     }
 }
 
@@ -2029,6 +2104,189 @@ function loadDemoData() {
     recentLeads = allLeads;
     onLeadsLoaded();
     showToast('Loaded demo data (Supabase not configured)');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SCORING RULES — Load, Save, UI Controls
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Load scoring rules from the scoring_rules singleton row in Supabase */
+async function loadScoringRules() {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('scoring_rules')
+            .select('*')
+            .eq('id', 1)
+            .single();
+        if (error) throw error;
+        if (data) {
+            for (const key of Object.keys(SCORING_DEFAULTS)) {
+                if (data[key] != null) scoringRules[key] = Number(data[key]);
+            }
+        }
+        console.log('Scoring rules loaded from DB');
+    } catch (err) {
+        console.warn('Could not load scoring rules — using defaults:', err.message || err);
+    }
+}
+
+/** Populate every stepper / input in the Scoring Rules tab from scoringRules */
+function populateScoringRulesUI() {
+    const r = scoringRules;
+    for (const key of Object.keys(SCORING_DEFAULTS)) {
+        const el = document.getElementById('val_' + key);
+        if (!el) continue;
+        const meta = SCORING_META[key];
+        if (el.tagName === 'INPUT') {
+            el.value = meta && meta[3] ? r[key].toFixed(2) : r[key];
+        } else {
+            el.textContent = meta && meta[3] ? r[key].toFixed(2) : r[key];
+        }
+    }
+    const lbl = document.getElementById('lbl_parcel_acres');
+    if (lbl) lbl.textContent = r.parcel_acres_threshold.toFixed(2);
+
+    renderScoringLegendPreview();
+    scoringRulesDirty = false;
+    _updateSaveBtn(false);
+}
+
+/** Build the live legend preview at the bottom of the scoring tab */
+function renderScoringLegendPreview() {
+    const r = scoringRules;
+    const el = document.getElementById('scoringLegendPreview');
+    if (!el) return;
+    el.innerHTML = `
+        <span class="legend-bonus">+${r.tree_removal_bonus}</span> Tree removal / arbor permit &nbsp;·&nbsp;
+        <span class="legend-bonus">+${r.vegetation_removal_bonus}</span> Vegetation removal &nbsp;·&nbsp;
+        <span class="legend-bonus">+${r.recency_bonus}</span> Filed within ${r.recency_days_threshold} days (non-DERM) &nbsp;·&nbsp;
+        <span class="legend-bonus">+${r.right_of_way_bonus}</span> Right-of-way<br>
+        <span class="legend-bonus">+${r.large_parcel_bonus}</span> Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} acres &nbsp;·&nbsp;
+        DERM tiers:
+        <span class="legend-bonus">+${r.derm_tier1_bonus}</span> (${r.derm_tier1_days_min}–${r.derm_tier1_days_max}d) &nbsp;
+        <span class="legend-bonus">+${r.derm_tier2_bonus}</span> (${r.derm_tier2_days_min}–${r.derm_tier2_days_max}d) &nbsp;
+        <span class="legend-bonus">+${r.derm_tier3_bonus}</span> (${r.derm_tier3_days_min}–${r.derm_tier3_days_max}d)<br>
+        <span class="legend-penalty">−${r.contractor_penalty}</span> Contractor assigned &nbsp;·&nbsp;
+        <span class="legend-penalty">−${r.derm_no_address_penalty}</span> DERM no address &nbsp;·&nbsp;
+        <span class="legend-penalty">−${r.intended_decision_penalty}</span> Intended Decision (Miami Tree)
+    `;
+}
+
+/** Step a rule value by +/- delta, clamped to its defined range */
+function stepRule(key, delta) {
+    const meta = SCORING_META[key];
+    if (!meta) return;
+    const [min, max, step, isDecimal] = meta;
+    let val = scoringRules[key] + delta * step;
+    val = Math.max(min, Math.min(max, isDecimal ? Math.round(val * 100) / 100 : Math.round(val)));
+    scoringRules[key] = val;
+
+    const el = document.getElementById('val_' + key);
+    if (el) {
+        const display = isDecimal ? val.toFixed(2) : val;
+        if (el.tagName === 'INPUT') el.value = display;
+        else el.textContent = display;
+    }
+
+    if (key === 'parcel_acres_threshold') {
+        const lbl = document.getElementById('lbl_parcel_acres');
+        if (lbl) lbl.textContent = val.toFixed(2);
+    }
+
+    scoringRulesDirty = true;
+    _updateSaveBtn(true);
+    renderScoringLegendPreview();
+}
+
+/** Handle manual input change (for DERM tier day range inputs) */
+function onRuleInputChange(key, inputEl) {
+    const meta = SCORING_META[key];
+    if (!meta) return;
+    const [min, max, , isDecimal] = meta;
+    let val = isDecimal ? parseFloat(inputEl.value) : parseInt(inputEl.value, 10);
+    if (isNaN(val)) val = SCORING_DEFAULTS[key];
+    val = Math.max(min, Math.min(max, val));
+    scoringRules[key] = val;
+    inputEl.value = isDecimal ? val.toFixed(2) : val;
+
+    scoringRulesDirty = true;
+    _updateSaveBtn(true);
+    renderScoringLegendPreview();
+}
+
+/** Visual indicator on the save button */
+function _updateSaveBtn(dirty) {
+    const btn = document.getElementById('saveScoringBtn');
+    if (!btn) return;
+    if (dirty) {
+        btn.innerHTML = `
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Save Rules *`;
+        btn.classList.remove('saved');
+    } else {
+        btn.innerHTML = `
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Save Rules`;
+        btn.classList.remove('saved');
+    }
+}
+
+/** Save current scoring rules to Supabase and refresh everything */
+async function saveScoringRules() {
+    if (!supabaseClient) {
+        showToast('Cannot save — Supabase not connected', 'error');
+        return;
+    }
+    const btn = document.getElementById('saveScoringBtn');
+    if (btn) btn.classList.add('saving');
+
+    try {
+        const payload = {};
+        for (const key of Object.keys(SCORING_DEFAULTS)) {
+            payload[key] = scoringRules[key];
+        }
+
+        const { error } = await supabaseClient
+            .from('scoring_rules')
+            .update(payload)
+            .eq('id', 1);
+        if (error) throw error;
+
+        scoringRulesDirty = false;
+        _updateSaveBtn(false);
+        _rebuildScorePopover();
+
+        if (leadGridApi) leadGridApi.refreshCells({ columns: ['lead_score'], force: true });
+        if (historicalGridApi) historicalGridApi.refreshCells({ columns: ['lead_score'], force: true });
+
+        try { renderOverviewStats(); } catch(e) {}
+        try { renderScoresChart(); } catch(e) {}
+
+        if (btn) {
+            btn.classList.remove('saving');
+            btn.classList.add('saved');
+            btn.innerHTML = `
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Saved ✓`;
+            setTimeout(() => _updateSaveBtn(false), 2000);
+        }
+        showToast('Scoring rules saved! Existing leads will be re-scored on next pipeline run.', 'success');
+    } catch (err) {
+        console.error('Failed to save scoring rules:', err);
+        if (btn) btn.classList.remove('saving');
+        showToast('Failed to save scoring rules: ' + (err.message || err), 'error');
+    }
+}
+
+/** Reset all rules to recommended defaults */
+async function resetScoringRulesToDefaults() {
+    if (!confirm('Reset all scoring rules to their recommended default values?')) return;
+    scoringRules = { ...SCORING_DEFAULTS };
+    populateScoringRulesUI();
+    scoringRulesDirty = true;
+    _updateSaveBtn(true);
+    showToast('Rules reset to defaults — click "Save Rules" to persist.', 'info');
 }
 
 function loadDemoHealthData() {
