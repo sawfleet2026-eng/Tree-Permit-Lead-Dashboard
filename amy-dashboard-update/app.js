@@ -32,7 +32,7 @@ let leadGridApi = null;
 let healthGridApi = null;
 let historicalGridApi = null;
 let allLeads = [];        // ALL leads from DB (no date filter) — used ONLY by Historical tab
-let recentLeads = [];     // Last 90 days by discovered_at — used by Overview, Lead List, Map
+let recentLeads = [];     // Last 90 days by permit_date — used by Overview, Lead List, Map
 let allJobRuns = [];
 let currentDetailLead = null;
 let leafletMap = null;
@@ -505,7 +505,7 @@ async function loadLeads() {
     try {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 90);
-        const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD for discovered_at comparison
+        const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
 
         const pageSize = 1000;
 
@@ -523,18 +523,17 @@ async function loadLeads() {
             return rows;
         }
 
-        // ── Query 1: All recent leads — filter by discovered_at (when pipeline found it) ──
-        // Using discovered_at ensures "recent" means recently discovered by the pipeline,
-        // not recently issued by the city. Permits with old issue dates but newly synced
-        // will no longer appear at the top of the Recent Leads section.
+        // ── Query 1: Recent leads — permits issued in the last 90 days ──
+        // Filters by permit_date (city issuance date) so we show genuinely recent
+        // permits. Sorted by permit_date desc so the newest permits come first.
         // Note: leads with no address (e.g. DERM no-address) are intentionally included
         // so they appear in score distribution charts. The map skips them via getLeadCoords().
         const allRecent = await fetchAllPages((from, to) =>
             supabaseClient
                 .from('leads')
                 .select('*')
-                .gte('discovered_at', cutoffDate)
-                .order('discovered_at', { ascending: false })
+                .gte('permit_date', cutoffDate)
+                .order('permit_date', { ascending: false })
                 .range(from, to)
         );
 
@@ -1614,9 +1613,9 @@ function renderRecentLeads() {
 
     const recent = [...recentLeads]
         .sort((a, b) => {
-            // Sort by recency: discovered_at first, fallback to permit_date
-            const dateA = a.discovered_at || a.permit_date || '';
-            const dateB = b.discovered_at || b.permit_date || '';
+            // Sort by permit issuance date (newest permits first)
+            const dateA = a.permit_date || '';
+            const dateB = b.permit_date || '';
             return dateB.localeCompare(dateA)
                 || (b.permit_number || '').localeCompare(a.permit_number || '');
         })
