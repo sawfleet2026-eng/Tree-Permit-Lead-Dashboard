@@ -365,6 +365,21 @@
                 </div>
             </div>
 
+            <!-- ═══ Live Score Legend Preview (collapsible, always visible) ═══ -->
+            <div id="scoringLegendCard" class="scoring-legend-card">
+                <button onclick="toggleLegendPreview()" class="scoring-legend-header" aria-expanded="true" aria-controls="scoringLegendBody">
+                    <div class="flex items-center gap-2">
+                        <span class="scoring-legend-icon">📊</span>
+                        <span class="scoring-legend-title">Live Score Legend Preview</span>
+                        <span class="scoring-legend-badge" id="legendMaxScore">—</span>
+                    </div>
+                    <svg id="legendChevron" class="scoring-legend-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="scoringLegendBody" class="scoring-legend-body">
+                    <div id="scoringLegendPreview" class="scoring-legend-content"></div>
+                </div>
+            </div>
+
             <!-- Scoring rules grid -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
@@ -581,14 +596,6 @@
                     </div>
                 </div>
 
-            </div>
-
-            <!-- Live Preview Legend -->
-            <div class="mt-6 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-5">
-                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    📊 Live Score Legend Preview
-                </h3>
-                <div id="scoringLegendPreview" class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed"></div>
             </div>
         </div>
 

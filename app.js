@@ -2159,25 +2159,52 @@ function populateScoringRulesUI() {
     _updateSaveBtn(false);
 }
 
-/** Build the live legend preview at the bottom of the scoring tab */
+/** Build the live legend preview at the top of the scoring tab */
 function renderScoringLegendPreview() {
     const r = scoringRules;
     const el = document.getElementById('scoringLegendPreview');
     if (!el) return;
+
+    // Calculate theoretical max score
+    const maxBonus = r.tree_removal_bonus + r.recency_bonus + r.large_parcel_bonus + r.right_of_way_bonus;
+    const maxDerm  = r.tree_removal_bonus + Math.max(r.derm_tier1_bonus, r.derm_tier2_bonus, r.derm_tier3_bonus) + r.large_parcel_bonus + r.right_of_way_bonus;
+    const maxScore = Math.max(maxBonus, maxDerm);
+    const badgeEl = document.getElementById('legendMaxScore');
+    if (badgeEl) badgeEl.textContent = `Max ${maxScore} pts`;
+
     el.innerHTML = `
-        <span class="legend-bonus">+${r.tree_removal_bonus}</span> Tree removal / arbor permit &nbsp;·&nbsp;
-        <span class="legend-bonus">+${r.vegetation_removal_bonus}</span> Vegetation removal &nbsp;·&nbsp;
-        <span class="legend-bonus">+${r.recency_bonus}</span> Filed within ${r.recency_days_threshold} days (non-DERM) &nbsp;·&nbsp;
-        <span class="legend-bonus">+${r.right_of_way_bonus}</span> Right-of-way<br>
-        <span class="legend-bonus">+${r.large_parcel_bonus}</span> Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} acres &nbsp;·&nbsp;
-        DERM tiers:
-        <span class="legend-bonus">+${r.derm_tier1_bonus}</span> (${r.derm_tier1_days_min}–${r.derm_tier1_days_max}d) &nbsp;
-        <span class="legend-bonus">+${r.derm_tier2_bonus}</span> (${r.derm_tier2_days_min}–${r.derm_tier2_days_max}d) &nbsp;
-        <span class="legend-bonus">+${r.derm_tier3_bonus}</span> (${r.derm_tier3_days_min}–${r.derm_tier3_days_max}d)<br>
-        <span class="legend-penalty">−${r.contractor_penalty}</span> Contractor assigned &nbsp;·&nbsp;
-        <span class="legend-penalty">−${r.derm_no_address_penalty}</span> DERM no address &nbsp;·&nbsp;
-        <span class="legend-penalty">−${r.intended_decision_penalty}</span> Intended Decision (Miami Tree)
+        <div class="legend-group">
+            <div class="legend-group-title">Bonuses</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.tree_removal_bonus}</span> <span class="legend-label">Tree removal / arbor</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.vegetation_removal_bonus}</span> <span class="legend-label">Vegetation removal</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.recency_bonus}</span> <span class="legend-label">Filed within ${r.recency_days_threshold}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.large_parcel_bonus}</span> <span class="legend-label">Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} ac</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.right_of_way_bonus}</span> <span class="legend-label">Right-of-way</span></div>
+        </div>
+        <div class="legend-group">
+            <div class="legend-group-title">DERM Tiered Recency</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier1_bonus}</span> <span class="legend-label">Tier 1 · ${r.derm_tier1_days_min}–${r.derm_tier1_days_max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier2_bonus}</span> <span class="legend-label">Tier 2 · ${r.derm_tier2_days_min}–${r.derm_tier2_days_max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier3_bonus}</span> <span class="legend-label">Tier 3 · ${r.derm_tier3_days_min}–${r.derm_tier3_days_max} days</span></div>
+        </div>
+        <div class="legend-group">
+            <div class="legend-group-title">Penalties</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.contractor_penalty}</span> <span class="legend-label">Contractor assigned</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.derm_no_address_penalty}</span> <span class="legend-label">DERM no address</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision</span></div>
+        </div>
     `;
+}
+
+/** Toggle legend preview collapse/expand */
+function toggleLegendPreview() {
+    const body = document.getElementById('scoringLegendBody');
+    const chevron = document.getElementById('legendChevron');
+    const btn = body?.closest('.scoring-legend-card')?.querySelector('.scoring-legend-header');
+    if (!body || !chevron) return;
+    const isCollapsed = body.classList.toggle('collapsed');
+    chevron.classList.toggle('collapsed', isCollapsed);
+    if (btn) btn.setAttribute('aria-expanded', !isCollapsed);
 }
 
 /** Step a rule value by +/- delta, clamped to its defined range */
