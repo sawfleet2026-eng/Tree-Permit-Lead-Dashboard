@@ -505,7 +505,7 @@ async function loadLeads() {
     try {
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 90);
-        const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD for permit_date comparison
+        const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD for discovered_at comparison
 
         const pageSize = 1000;
 
@@ -523,15 +523,18 @@ async function loadLeads() {
             return rows;
         }
 
-        // ── Query 1: All recent leads — use permit_date as the 90-day signal ──
+        // ── Query 1: All recent leads — filter by discovered_at (when pipeline found it) ──
+        // Using discovered_at ensures "recent" means recently discovered by the pipeline,
+        // not recently issued by the city. Permits with old issue dates but newly synced
+        // will no longer appear at the top of the Recent Leads section.
         // Note: leads with no address (e.g. DERM no-address) are intentionally included
         // so they appear in score distribution charts. The map skips them via getLeadCoords().
         const allRecent = await fetchAllPages((from, to) =>
             supabaseClient
                 .from('leads')
                 .select('*')
-                .gte('permit_date', cutoffDate)
-                .order('permit_date', { ascending: false })
+                .gte('discovered_at', cutoffDate)
+                .order('discovered_at', { ascending: false })
                 .range(from, to)
         );
 
