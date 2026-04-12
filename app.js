@@ -47,8 +47,15 @@ let historicalSourceFilter = '';  // '' = all, else source_name value
 const SCORING_DEFAULTS = {
     tree_removal_bonus: 5,
     vegetation_removal_bonus: 4,
+    landscape_installation_bonus: 3,
     recency_bonus: 3,
     recency_days_threshold: 7,
+    recency_tier1_days_max: 30,
+    recency_tier1_bonus: 3,
+    recency_tier2_days_max: 90,
+    recency_tier2_bonus: 1,
+    recency_tier3_days_max: 180,
+    recency_tier3_bonus: 1,
     large_parcel_bonus: 2,
     parcel_acres_threshold: 0.50,
     right_of_way_bonus: 1,
@@ -63,29 +70,42 @@ const SCORING_DEFAULTS = {
     derm_tier3_bonus: 1,
     contractor_penalty: 2,
     derm_no_address_penalty: 3,
-    intended_decision_penalty: 1,
+    intended_decision_penalty: 2,
+    corrections_required_penalty: 2,
+    staleness_penalty: 1,
+    staleness_days_threshold: 365,
 };
 // Rule metadata: [min, max, step, isDecimal]
 const SCORING_META = {
-    tree_removal_bonus:          [0, 10, 1, false],
-    vegetation_removal_bonus:    [0, 10, 1, false],
-    recency_bonus:               [0, 10, 1, false],
-    recency_days_threshold:      [1, 90, 1, false],
-    large_parcel_bonus:          [0, 10, 1, false],
-    parcel_acres_threshold:      [0.10, 50.00, 0.10, true],
-    right_of_way_bonus:          [0, 10, 1, false],
-    derm_tier1_days_min:         [0, 365, 1, false],
-    derm_tier1_days_max:         [1, 365, 1, false],
-    derm_tier1_bonus:            [0, 10, 1, false],
-    derm_tier2_days_min:         [0, 365, 1, false],
-    derm_tier2_days_max:         [1, 365, 1, false],
-    derm_tier2_bonus:            [0, 10, 1, false],
-    derm_tier3_days_min:         [0, 365, 1, false],
-    derm_tier3_days_max:         [1, 365, 1, false],
-    derm_tier3_bonus:            [0, 10, 1, false],
-    contractor_penalty:          [0, 10, 1, false],
-    derm_no_address_penalty:     [0, 10, 1, false],
-    intended_decision_penalty:   [0, 10, 1, false],
+    tree_removal_bonus:              [0, 10, 1, false],
+    vegetation_removal_bonus:        [0, 10, 1, false],
+    landscape_installation_bonus:    [0, 10, 1, false],
+    recency_bonus:                   [0, 10, 1, false],
+    recency_days_threshold:          [1, 90, 1, false],
+    recency_tier1_days_max:          [1, 365, 1, false],
+    recency_tier1_bonus:             [0, 10, 1, false],
+    recency_tier2_days_max:          [1, 365, 1, false],
+    recency_tier2_bonus:             [0, 10, 1, false],
+    recency_tier3_days_max:          [1, 365, 1, false],
+    recency_tier3_bonus:             [0, 10, 1, false],
+    large_parcel_bonus:              [0, 10, 1, false],
+    parcel_acres_threshold:          [0.10, 50.00, 0.10, true],
+    right_of_way_bonus:              [0, 10, 1, false],
+    derm_tier1_days_min:             [0, 365, 1, false],
+    derm_tier1_days_max:             [1, 365, 1, false],
+    derm_tier1_bonus:                [0, 10, 1, false],
+    derm_tier2_days_min:             [0, 365, 1, false],
+    derm_tier2_days_max:             [1, 365, 1, false],
+    derm_tier2_bonus:                [0, 10, 1, false],
+    derm_tier3_days_min:             [0, 365, 1, false],
+    derm_tier3_days_max:             [1, 365, 1, false],
+    derm_tier3_bonus:                [0, 10, 1, false],
+    contractor_penalty:              [0, 10, 1, false],
+    derm_no_address_penalty:         [0, 10, 1, false],
+    intended_decision_penalty:       [0, 10, 1, false],
+    corrections_required_penalty:    [0, 10, 1, false],
+    staleness_penalty:               [0, 10, 1, false],
+    staleness_days_threshold:        [1, 730, 1, false],
 };
 let scoringRules = { ...SCORING_DEFAULTS };
 let scoringRulesDirty = false;
@@ -951,7 +971,7 @@ function computeLeadScore(lead) {
     } else if (VEGETATION_TYPES.has(ptUpper)) {
         score += r.vegetation_removal_bonus;
     } else if (LANDSCAPE_TYPES.has(ptUpper)) {
-        score += (r.landscape_installation_bonus || 3);
+        score += r.landscape_installation_bonus;
     }
 
     // Description fallback (only when type gave nothing)
@@ -964,7 +984,7 @@ function computeLeadScore(lead) {
         } else if (['dead tree', 'dangerous tree'].some(kw => descLower.includes(kw))) {
             score += r.tree_removal_bonus;
         } else if (['landscape installation', 'row landscaping'].some(kw => descLower.includes(kw))) {
-            score += (r.landscape_installation_bonus || 3);
+            score += r.landscape_installation_bonus;
         }
     }
 
@@ -984,21 +1004,21 @@ function computeLeadScore(lead) {
                 }
             } else {
                 // General tiered recency
-                const rt1 = r.recency_tier1_days_max || 30;
-                const rt2 = r.recency_tier2_days_max || 90;
-                const rt3 = r.recency_tier3_days_max || 180;
+                const rt1 = r.recency_tier1_days_max;
+                const rt2 = r.recency_tier2_days_max;
+                const rt3 = r.recency_tier3_days_max;
                 if (ageDays <= rt1) {
-                    score += (r.recency_tier1_bonus != null ? r.recency_tier1_bonus : 3);
+                    score += r.recency_tier1_bonus;
                 } else if (ageDays <= rt2) {
-                    score += (r.recency_tier2_bonus != null ? r.recency_tier2_bonus : 2);
+                    score += r.recency_tier2_bonus;
                 } else if (ageDays <= rt3) {
-                    score += (r.recency_tier3_bonus != null ? r.recency_tier3_bonus : 1);
+                    score += r.recency_tier3_bonus;
                 }
             }
 
             // Staleness penalty (>365 days)
-            const staleDays = r.staleness_days_threshold || 365;
-            const stalePen  = r.staleness_penalty || 1;
+            const staleDays = r.staleness_days_threshold;
+            const stalePen  = r.staleness_penalty;
             if (ageDays > staleDays) {
                 score = Math.max(0, score - stalePen);
             }
@@ -1026,6 +1046,11 @@ function computeLeadScore(lead) {
         (lead.permit_status || '').trim().toLowerCase() === 'intended decision'
     ) {
         score = Math.max(0, score - r.intended_decision_penalty);
+    }
+
+    // "Corrections Required" penalty (application has issues — not actionable yet)
+    if ((lead.permit_status || '').trim().toLowerCase() === 'corrections required') {
+        score = Math.max(0, score - r.corrections_required_penalty);
     }
 
     return score;
@@ -2264,38 +2289,26 @@ function renderScoringLegendPreview() {
     if (!el) return;
 
     // Calculate theoretical max score
-    const maxGeneral = r.tree_removal_bonus + (r.recency_tier1_bonus || 3) + r.large_parcel_bonus + r.right_of_way_bonus;
+    const maxGeneral = r.tree_removal_bonus + r.recency_tier1_bonus + r.large_parcel_bonus + r.right_of_way_bonus;
     const maxDerm  = r.tree_removal_bonus + Math.max(r.derm_tier1_bonus, r.derm_tier2_bonus, r.derm_tier3_bonus) + r.large_parcel_bonus + r.right_of_way_bonus;
     const maxScore = Math.max(maxGeneral, maxDerm);
     const badgeEl = document.getElementById('legendMaxScore');
     if (badgeEl) badgeEl.textContent = `Max ${maxScore} pts`;
-
-    const t1Bonus = r.recency_tier1_bonus || 3;
-    const t1Min = r.recency_tier1_days_min != null ? r.recency_tier1_days_min : 0;
-    const t1Max = r.recency_tier1_days_max || 30;
-    const t2Bonus = r.recency_tier2_bonus || 2;
-    const t2Min = r.recency_tier2_days_min || 31;
-    const t2Max = r.recency_tier2_days_max || 90;
-    const t3Bonus = r.recency_tier3_bonus || 1;
-    const t3Min = r.recency_tier3_days_min || 91;
-    const t3Max = r.recency_tier3_days_max || 180;
-    const staleDays = r.staleness_days_threshold || 365;
-    const stalePen = r.staleness_penalty || 1;
 
     el.innerHTML = `
         <div class="legend-group">
             <div class="legend-group-title">Bonuses</div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.tree_removal_bonus}</span> <span class="legend-label">Tree removal / arbor</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.vegetation_removal_bonus}</span> <span class="legend-label">Vegetation removal</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus || 3}</span> <span class="legend-label">Landscape / ROW landscaping</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus}</span> <span class="legend-label">Landscape / ROW landscaping</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.large_parcel_bonus}</span> <span class="legend-label">Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} ac</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.right_of_way_bonus}</span> <span class="legend-label">Right-of-way</span></div>
         </div>
         <div class="legend-group">
             <div class="legend-group-title">General Recency (non-DERM)</div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t1Bonus}</span> <span class="legend-label">Hot · ${t1Min}–${t1Max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t2Bonus}</span> <span class="legend-label">Warm · ${t2Min}–${t2Max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t3Bonus}</span> <span class="legend-label">Aging · ${t3Min}–${t3Max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier1_bonus}</span> <span class="legend-label">Hot · 0–${r.recency_tier1_days_max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier2_bonus}</span> <span class="legend-label">Warm · ${r.recency_tier1_days_max + 1}–${r.recency_tier2_days_max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier3_bonus}</span> <span class="legend-label">Aging · ${r.recency_tier2_days_max + 1}–${r.recency_tier3_days_max} days</span></div>
         </div>
         <div class="legend-group">
             <div class="legend-group-title">DERM Tiered Recency</div>
@@ -2307,8 +2320,9 @@ function renderScoringLegendPreview() {
             <div class="legend-group-title">Penalties</div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.contractor_penalty}</span> <span class="legend-label">Contractor assigned</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.derm_no_address_penalty}</span> <span class="legend-label">DERM no address</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${stalePen}</span> <span class="legend-label">Stale permit (&gt; ${staleDays} days)</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision (pre-approval)</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.corrections_required_penalty}</span> <span class="legend-label">Corrections Required (stuck)</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.staleness_penalty}</span> <span class="legend-label">Stale permit (&gt; ${r.staleness_days_threshold} days)</span></div>
         </div>
     `;
 }
