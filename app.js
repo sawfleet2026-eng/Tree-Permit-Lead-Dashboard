@@ -936,6 +936,7 @@ function computeLeadScore(lead) {
         'ARBOR PERMIT', 'TREE ALTERATION', 'LANDSCAPE TREE REMOVAL-RELOCATION PERMIT',
     ]);
     const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
+    const LANDSCAPE_TYPES = new Set(['LANDSCAPE INSTALLATION PERMIT', 'ROW LANDSCAPING PERMIT']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
     const DERM_SOURCES = new Set(['miami_dade_derm']);
 
@@ -947,11 +948,12 @@ function computeLeadScore(lead) {
     // Tree removal / arbor bonus
     if (TREE_REMOVAL_TYPES.has(ptUpper)) {
         score += r.tree_removal_bonus;
-    }
-    // Vegetation removal bonus
-    if (VEGETATION_TYPES.has(ptUpper)) {
+    } else if (VEGETATION_TYPES.has(ptUpper)) {
         score += r.vegetation_removal_bonus;
+    } else if (LANDSCAPE_TYPES.has(ptUpper)) {
+        score += (r.landscape_installation_bonus || 3);
     }
+
     // Description fallback (only when type gave nothing)
     if (score === 0) {
         if (['tree removal', 'remove tree', 'arbor', 'landscape tree removal', 'tree relocation']
@@ -961,6 +963,8 @@ function computeLeadScore(lead) {
             score += r.vegetation_removal_bonus;
         } else if (['dead tree', 'dangerous tree'].some(kw => descLower.includes(kw))) {
             score += r.tree_removal_bonus;
+        } else if (['landscape installation', 'row landscaping'].some(kw => descLower.includes(kw))) {
+            score += (r.landscape_installation_bonus || 3);
         }
     }
 
@@ -979,9 +983,24 @@ function computeLeadScore(lead) {
                     score += r.derm_tier3_bonus;
                 }
             } else {
-                if (ageDays <= r.recency_days_threshold) {
-                    score += r.recency_bonus;
+                // General tiered recency
+                const rt1 = r.recency_tier1_days_max || 30;
+                const rt2 = r.recency_tier2_days_max || 90;
+                const rt3 = r.recency_tier3_days_max || 180;
+                if (ageDays <= rt1) {
+                    score += (r.recency_tier1_bonus != null ? r.recency_tier1_bonus : 3);
+                } else if (ageDays <= rt2) {
+                    score += (r.recency_tier2_bonus != null ? r.recency_tier2_bonus : 2);
+                } else if (ageDays <= rt3) {
+                    score += (r.recency_tier3_bonus != null ? r.recency_tier3_bonus : 1);
                 }
+            }
+
+            // Staleness penalty (>365 days)
+            const staleDays = r.staleness_days_threshold || 365;
+            const stalePen  = r.staleness_penalty || 1;
+            if (ageDays > staleDays) {
+                score = Math.max(0, score - stalePen);
             }
         }
     }
@@ -1353,57 +1372,69 @@ function renderTimelineChart() {
     cutoff.setDate(cutoff.getDate() - 90);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    // Group by ISO week (Mon-Sun) for a cleaner, normalized view
-    const byWeek = {};
+    // Source order & colors — must match the donut chart
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6' };
+
+    // Group by ISO week AND source
+    const byWeekSrc = {};  // { weekStart: { source: count } }
     recentLeads.forEach(l => {
         const d = l.permit_date ? l.permit_date.slice(0, 10) : null;
         if (!d || d < cutoffStr) return;
         const weekStart = getWeekStart(d);
-        byWeek[weekStart] = (byWeek[weekStart] || 0) + 1;
+        if (!byWeekSrc[weekStart]) byWeekSrc[weekStart] = {};
+        const src = l.source_name || 'unknown';
+        byWeekSrc[weekStart][src] = (byWeekSrc[weekStart][src] || 0) + 1;
     });
 
-    const sorted = Object.entries(byWeek).sort((a, b) => a[0].localeCompare(b[0]));
-    const labels = sorted.map(([d]) => {
+    const weeks = Object.keys(byWeekSrc).sort();
+    const labels = weeks.map(d => {
         const dt = new Date(d + 'T00:00:00');
         return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     });
-    const data = sorted.map(([, c]) => c);
+
+    // Build one dataset per source (stacked)
+    const datasets = SOURCE_ORDER.map(src => ({
+        label: formatSourceName(src),
+        data: weeks.map(w => (byWeekSrc[w] && byWeekSrc[w][src]) || 0),
+        backgroundColor: SOURCE_COLORS[src] || '#94a3b8',
+        borderRadius: 2,
+        borderSkipped: false,
+    }));
+
     const colors = getChartColors();
+    const maxTotal = Math.max(...weeks.map(w => SOURCE_ORDER.reduce((s, k) => s + ((byWeekSrc[w] && byWeekSrc[w][k]) || 0), 0)), 5);
 
     if (chartTimeline) chartTimeline.destroy();
     chartTimeline = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Leads / week',
-                data,
-                backgroundColor: 'rgba(5, 150, 105, 0.6)',
-                borderColor: '#059669',
-                borderWidth: 1,
-                borderRadius: 4,
-            }],
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { position: 'bottom', labels: { color: colors.text, padding: 12, boxWidth: 12, font: { size: 10 } } },
                 tooltip: {
+                    mode: 'index',
                     callbacks: {
-                        title: (items) => `Week of ${sorted[items[0].dataIndex][0]}`,
-                        label: (item) => `${item.raw} leads`,
+                        title: (items) => `Week of ${weeks[items[0].dataIndex]}`,
+                        footer: (items) => {
+                            const total = items.reduce((s, i) => s + i.raw, 0);
+                            return `Total: ${total} leads`;
+                        },
                     },
                 },
             },
             scales: {
                 x: {
+                    stacked: true,
                     ticks: { color: colors.text, maxTicksLimit: 13, font: { size: 10 } },
                     grid: { display: false },
                 },
                 y: {
+                    stacked: true,
                     beginAtZero: true,
-                    suggestedMax: Math.max(...data, 5) * 1.25,
+                    suggestedMax: maxTotal * 1.25,
                     ticks: {
                         color: colors.text,
                         font: { size: 10 },
@@ -1814,6 +1845,7 @@ function initHealthGrid() {
         },
         { field: 'records_found', headerName: 'Found', width: 90, type: 'numericColumn' },
         { field: 'records_inserted', headerName: 'Inserted', width: 100, type: 'numericColumn' },
+        { field: 'records_updated', headerName: 'Updated', width: 100, type: 'numericColumn' },
         {
             field: 'started_at', headerName: 'Started', width: 160,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
@@ -1855,10 +1887,18 @@ function renderHealthCards(runs) {
         }
     });
 
+    // Count total leads per source from the loaded data
+    const leadCounts = {};
+    (recentLeads || []).forEach(l => {
+        const s = l.source_name || 'unknown';
+        leadCounts[s] = (leadCounts[s] || 0) + 1;
+    });
+
     const container = document.getElementById('healthCards');
     container.innerHTML = sourceOrder.map(src => {
         const run = sources[src];
         const icon = sourceIcons[src] || '📋';
+        const totalLeads = leadCounts[src] || 0;
 
         if (!run) {
             return `
@@ -1870,7 +1910,10 @@ function renderHealthCards(runs) {
                             <p class="text-xs text-gray-500">No runs recorded</p>
                         </div>
                     </div>
-                    <div class="flex justify-end">
+                    <div class="space-y-0">
+                        <div class="health-row"><span class="health-label">Total Leads</span><span class="health-value">${totalLeads.toLocaleString()}</span></div>
+                    </div>
+                    <div class="flex justify-end mt-2">
                         <span class="health-status" style="background:#f3f4f6;color:#6b7280">NO DATA</span>
                     </div>
                 </div>
@@ -1893,8 +1936,10 @@ function renderHealthCards(runs) {
                     <span class="health-status ${statusCls}">${(run.status || 'unknown').toUpperCase()}</span>
                 </div>
                 <div class="space-y-0">
-                    <div class="health-row"><span class="health-label">Records Found</span><span class="health-value">${(run.records_found || 0).toLocaleString()}</span></div>
+                    <div class="health-row"><span class="health-label">Total Leads</span><span class="health-value font-semibold">${totalLeads.toLocaleString()}</span></div>
+                    <div class="health-row"><span class="health-label">New Records</span><span class="health-value">${(run.records_found || 0).toLocaleString()}</span></div>
                     <div class="health-row"><span class="health-label">Inserted</span><span class="health-value">${(run.records_inserted || 0).toLocaleString()}</span></div>
+                    <div class="health-row"><span class="health-label">Updated</span><span class="health-value">${(run.records_updated || 0).toLocaleString()}</span></div>
                 </div>
                 ${errorHtml}
             </div>
@@ -2166,20 +2211,38 @@ function renderScoringLegendPreview() {
     if (!el) return;
 
     // Calculate theoretical max score
-    const maxBonus = r.tree_removal_bonus + r.recency_bonus + r.large_parcel_bonus + r.right_of_way_bonus;
+    const maxGeneral = r.tree_removal_bonus + (r.recency_tier1_bonus || 3) + r.large_parcel_bonus + r.right_of_way_bonus;
     const maxDerm  = r.tree_removal_bonus + Math.max(r.derm_tier1_bonus, r.derm_tier2_bonus, r.derm_tier3_bonus) + r.large_parcel_bonus + r.right_of_way_bonus;
-    const maxScore = Math.max(maxBonus, maxDerm);
+    const maxScore = Math.max(maxGeneral, maxDerm);
     const badgeEl = document.getElementById('legendMaxScore');
     if (badgeEl) badgeEl.textContent = `Max ${maxScore} pts`;
+
+    const t1Bonus = r.recency_tier1_bonus || 3;
+    const t1Min = r.recency_tier1_days_min != null ? r.recency_tier1_days_min : 0;
+    const t1Max = r.recency_tier1_days_max || 30;
+    const t2Bonus = r.recency_tier2_bonus || 2;
+    const t2Min = r.recency_tier2_days_min || 31;
+    const t2Max = r.recency_tier2_days_max || 90;
+    const t3Bonus = r.recency_tier3_bonus || 1;
+    const t3Min = r.recency_tier3_days_min || 91;
+    const t3Max = r.recency_tier3_days_max || 180;
+    const staleDays = r.staleness_days_threshold || 365;
+    const stalePen = r.staleness_penalty || 1;
 
     el.innerHTML = `
         <div class="legend-group">
             <div class="legend-group-title">Bonuses</div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.tree_removal_bonus}</span> <span class="legend-label">Tree removal / arbor</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.vegetation_removal_bonus}</span> <span class="legend-label">Vegetation removal</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.recency_bonus}</span> <span class="legend-label">Filed within ${r.recency_days_threshold}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus || 3}</span> <span class="legend-label">Landscape / ROW landscaping</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.large_parcel_bonus}</span> <span class="legend-label">Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} ac</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.right_of_way_bonus}</span> <span class="legend-label">Right-of-way</span></div>
+        </div>
+        <div class="legend-group">
+            <div class="legend-group-title">General Recency (non-DERM)</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t1Bonus}</span> <span class="legend-label">Hot · ${t1Min}–${t1Max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t2Bonus}</span> <span class="legend-label">Warm · ${t2Min}–${t2Max} days</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${t3Bonus}</span> <span class="legend-label">Aging · ${t3Min}–${t3Max} days</span></div>
         </div>
         <div class="legend-group">
             <div class="legend-group-title">DERM Tiered Recency</div>
@@ -2192,6 +2255,7 @@ function renderScoringLegendPreview() {
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.contractor_penalty}</span> <span class="legend-label">Contractor assigned</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.derm_no_address_penalty}</span> <span class="legend-label">DERM no address</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${stalePen}</span> <span class="legend-label">Stale permit (&gt; ${staleDays} days)</span></div>
         </div>
     `;
 }
@@ -2336,25 +2400,25 @@ function loadDemoHealthData() {
             id: 'demo-run-1', job_name: 'derm_tree_worker', source_name: 'miami_dade_derm',
             started_at: new Date(Date.now() - 3600000).toISOString(),
             finished_at: new Date(Date.now() - 3500000).toISOString(),
-            status: 'success', records_found: 128, records_inserted: 12, error_message: null,
+            status: 'success', records_found: 128, records_inserted: 12, records_updated: 116, error_message: null,
         },
         {
             id: 'demo-run-2', job_name: 'fort_lauderdale_worker', source_name: 'fort_lauderdale',
             started_at: new Date(Date.now() - 3000000).toISOString(),
             finished_at: new Date(Date.now() - 2900000).toISOString(),
-            status: 'success', records_found: 45, records_inserted: 8, error_message: null,
+            status: 'success', records_found: 45, records_inserted: 8, records_updated: 37, error_message: null,
         },
         {
             id: 'demo-run-3', job_name: 'miami_tree_worker', source_name: 'city_of_miami_tree',
             started_at: new Date(Date.now() - 2400000).toISOString(),
             finished_at: new Date(Date.now() - 2300000).toISOString(),
-            status: 'success', records_found: 22, records_inserted: 5, error_message: null,
+            status: 'success', records_found: 22, records_inserted: 5, records_updated: 17, error_message: null,
         },
         {
             id: 'demo-run-4', job_name: 'miami_building_worker', source_name: 'city_of_miami',
             started_at: new Date(Date.now() - 1800000).toISOString(),
             finished_at: new Date(Date.now() - 1700000).toISOString(),
-            status: 'success', records_found: 340, records_inserted: 3, error_message: null,
+            status: 'success', records_found: 340, records_inserted: 3, records_updated: 337, error_message: null,
         },
     ];
 
