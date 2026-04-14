@@ -843,17 +843,6 @@ function initLeadGrid() {
             cellRenderer: statusRenderer,
         },
         {
-            headerName: 'Map', colId: 'google_maps_url',
-            width: 60, minWidth: 55, suppressSizeToFit: true,
-            sortable: false, filter: false,
-            cellStyle: { textAlign: 'center' },
-            valueGetter: (p) => googleMapsUrl(p.data.address, p.data.source_name),
-            cellRenderer: (p) => {
-                if (!p.value) return '<span style="color:#d1d5db">—</span>';
-                return `<a href="${p.value}" target="_blank" rel="noopener" title="Open in Google Maps" style="font-size:16px;text-decoration:none">📍</a>`;
-            },
-        },
-        {
             headerName: 'Actions', width: 110, minWidth: 100,
             pinned: 'right', suppressSizeToFit: true,
             cellRenderer: actionsRenderer,
@@ -1274,7 +1263,7 @@ function exportCSV() {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
     }
@@ -1292,7 +1281,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
+        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
     });
 
     // Mark as exported in db
@@ -1313,7 +1302,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
         });
         showToast('Historical CSV exported');
     }
@@ -1925,17 +1914,6 @@ function initHistoricalGrid() {
             field: 'discovered_at', headerName: 'Discovered',
             width: 160, minWidth: 140,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
-        },
-        {
-            headerName: 'Map', colId: 'google_maps_url',
-            width: 60, minWidth: 55, suppressSizeToFit: true,
-            sortable: false, filter: false,
-            cellStyle: { textAlign: 'center' },
-            valueGetter: (p) => googleMapsUrl(p.data.address, p.data.source_name),
-            cellRenderer: (p) => {
-                if (!p.value) return '<span style="color:#d1d5db">—</span>';
-                return `<a href="${p.value}" target="_blank" rel="noopener" title="Open in Google Maps" style="font-size:16px;text-decoration:none">📍</a>`;
-            },
         },
     ];
 
