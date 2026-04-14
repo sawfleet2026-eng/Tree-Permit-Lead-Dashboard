@@ -2324,7 +2324,6 @@ async function loadScoringRules() {
             .single();
         if (error) throw error;
         if (data) {
-            // Merge DB values over defaults (so any new columns fall back gracefully)
             for (const key of Object.keys(SCORING_DEFAULTS)) {
                 if (data[key] != null) scoringRules[key] = Number(data[key]);
             }
@@ -2348,7 +2347,6 @@ function populateScoringRulesUI() {
             el.textContent = meta && meta[3] ? r[key].toFixed(2) : r[key];
         }
     }
-    // Update the parcel acres label in the bonus section
     const lbl = document.getElementById('lbl_parcel_acres');
     if (lbl) lbl.textContent = r.parcel_acres_threshold.toFixed(2);
 
@@ -2436,7 +2434,6 @@ function stepRule(key, delta) {
     val = Math.max(min, Math.min(max, isDecimal ? Math.round(val * 100) / 100 : Math.round(val)));
     scoringRules[key] = val;
 
-    // Update the UI element
     const el = document.getElementById('val_' + key);
     if (el) {
         const display = isDecimal ? val.toFixed(2) : val;
@@ -2444,7 +2441,6 @@ function stepRule(key, delta) {
         else el.textContent = display;
     }
 
-    // Update parcel acres label if applicable
     if (key === 'parcel_acres_threshold') {
         const lbl = document.getElementById('lbl_parcel_acres');
         if (lbl) lbl.textContent = val.toFixed(2);
@@ -2500,7 +2496,6 @@ async function saveScoringRules() {
     if (btn) btn.classList.add('saving');
 
     try {
-        // Build the update payload (exclude id, updated_at)
         const payload = {};
         for (const key of Object.keys(SCORING_DEFAULTS)) {
             payload[key] = scoringRules[key];
@@ -2514,15 +2509,11 @@ async function saveScoringRules() {
 
         scoringRulesDirty = false;
         _updateSaveBtn(false);
-
-        // Rebuild the score popover so it reflects new values
         _rebuildScorePopover();
 
-        // Re-compute scores in the grids
         if (leadGridApi) leadGridApi.refreshCells({ columns: ['lead_score'], force: true });
         if (historicalGridApi) historicalGridApi.refreshCells({ columns: ['lead_score'], force: true });
 
-        // Re-render overview stats
         try { renderOverviewStats(); } catch(e) {}
         try { renderScoresChart(); } catch(e) {}
 
