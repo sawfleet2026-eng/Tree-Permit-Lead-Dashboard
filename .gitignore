@@ -88,6 +88,7 @@ Permits_Data_Scrapping_Strategy.html
 *_Strategy.html
 
 # Other workspace files that shouldn't go to public repo
+amy-dashboard-update/
 dashboard/
 lead-dashboard/
 analyze_*.py

@@ -776,15 +776,27 @@ function initLeadGrid() {
             },
         },
         {
+            field: 'owner_name', headerName: 'Owner',
+            width: 160, minWidth: 120,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
+        },
+        {
             field: 'address', headerName: 'Address',
             minWidth: 130, flex: 1,
             cellRenderer: addressRenderer,
         },
         {
-            field: 'owner_name', headerName: 'Owner',
-            width: 140, minWidth: 110,
-            cellStyle: { fontSize: '12px' },
-            valueFormatter: (p) => p.value || '—',
+            field: 'owner_phone', headerName: 'Owner Phone',
+            width: 130, minWidth: 110,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
+        },
+        {
+            field: 'owner_email', headerName: 'Owner Email',
+            width: 185, minWidth: 140,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'permit_type', headerName: 'Permit Type',
@@ -822,18 +834,6 @@ function initLeadGrid() {
             width: 120, minWidth: 100,
             cellStyle: { fontSize: '11px' },
             cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
-        },
-        {
-            field: 'owner_phone', headerName: 'Owner Phone',
-            width: 120, minWidth: 100,
-            cellStyle: { fontSize: '11px' },
-            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
-        },
-        {
-            field: 'owner_email', headerName: 'Owner Email',
-            width: 160, minWidth: 120,
-            cellStyle: { fontSize: '11px' },
-            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'lead_status', headerName: 'Status',
@@ -1809,6 +1809,12 @@ function initHistoricalGrid() {
             valueFormatter: (p) => formatSourceName(p.value),
         },
         {
+            field: 'owner_name', headerName: 'Owner',
+            width: 160, minWidth: 120,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
+        },
+        {
             field: 'address', headerName: 'Address',
             minWidth: 150, flex: 1.2,
             cellRenderer: (params) => {
@@ -1817,10 +1823,16 @@ function initHistoricalGrid() {
             },
         },
         {
-            field: 'owner_name', headerName: 'Owner',
-            width: 140, minWidth: 110,
-            cellStyle: { fontSize: '12px' },
-            valueFormatter: (p) => p.value || '—',
+            field: 'owner_phone', headerName: 'Owner Phone',
+            width: 130, minWidth: 110,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
+        },
+        {
+            field: 'owner_email', headerName: 'Owner Email',
+            width: 185, minWidth: 140,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'permit_type', headerName: 'Permit Type',
@@ -1863,18 +1875,6 @@ function initHistoricalGrid() {
             width: 120, minWidth: 100,
             cellStyle: { fontSize: '11px' },
             cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
-        },
-        {
-            field: 'owner_phone', headerName: 'Owner Phone',
-            width: 120, minWidth: 100,
-            cellStyle: { fontSize: '11px' },
-            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
-        },
-        {
-            field: 'owner_email', headerName: 'Owner Email',
-            width: 160, minWidth: 120,
-            cellStyle: { fontSize: '11px' },
-            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'lead_status', headerName: 'Status',
