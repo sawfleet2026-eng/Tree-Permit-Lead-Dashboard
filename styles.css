@@ -338,6 +338,13 @@ select.filter-input {
 .ag-theme-custom .ag-cell[col-id="0"] .ag-selection-checkbox {
     margin: 0 auto !important;
 }
+.ag-theme-custom .ag-header-cell[col-id="0"] .ag-header-cell-comp-wrapper,
+.ag-theme-custom .ag-header-cell[col-id="0"] .ag-header-select-all {
+    margin: 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
 
 /* ── Status Badges ──────────────────────────────────────── */
 .status-badge {
