@@ -148,7 +148,7 @@ function togglePasswordVisibility() {
 
 /** Check if user has a valid session on page load. */
 function initAuth() {
-    const session = sessionStorage.getItem('authSession');
+    const session = sessionStorage.getItem('authSession') || localStorage.getItem('authSession');
     if (session) {
         try {
             const parsed = JSON.parse(session);
@@ -157,8 +157,12 @@ function initAuth() {
                 isAuthenticated = true;
             } else {
                 sessionStorage.removeItem('authSession');
+                localStorage.removeItem('authSession');
             }
-        } catch { sessionStorage.removeItem('authSession'); }
+        } catch {
+            sessionStorage.removeItem('authSession');
+            localStorage.removeItem('authSession');
+        }
     }
     applyAuthState();
 }
@@ -256,7 +260,9 @@ async function doLogin() {
     /** Shared success handler */
     function _onLoginSuccess() {
         isAuthenticated = true;
-        sessionStorage.setItem('authSession', JSON.stringify({ user: username, ts: Date.now() }));
+        const sessionData = JSON.stringify({ user: username, ts: Date.now() });
+        sessionStorage.setItem('authSession', sessionData);
+        localStorage.setItem('authSession', sessionData);
         applyAuthState();
         closeLoginModal();
         showToast(`Welcome, ${username}!`);
@@ -326,6 +332,7 @@ async function doLogin() {
 function doLogout() {
     isAuthenticated = false;
     sessionStorage.removeItem('authSession');
+    localStorage.removeItem('authSession');
     applyAuthState();
     showToast('Logged out');
 }
@@ -654,20 +661,6 @@ function toggleNotificationPanel() {
     const panel = document.getElementById('notifPanel');
     if (panel) panel.classList.toggle('hidden');
 }
-
-function toggleDocsMenu() {
-    const menu = document.getElementById('docsMenu');
-    if (menu) menu.classList.toggle('hidden');
-}
-
-// Close docs menu when clicking outside
-document.addEventListener('click', (e) => {
-    const menu = document.getElementById('docsMenu');
-    if (menu && !menu.classList.contains('hidden')) {
-        const parent = menu.closest('.relative');
-        if (parent && !parent.contains(e.target)) menu.classList.add('hidden');
-    }
-});
 
 function markAllNotifSeen() {
     if (!requireAuth('clear notifications')) return;

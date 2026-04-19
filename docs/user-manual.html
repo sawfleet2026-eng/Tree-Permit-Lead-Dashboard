@@ -286,6 +286,18 @@
             color: #64748b; font-size: 13px; text-decoration: none;
         }
         .doc-back-link:hover { color: #0d6e3f; }
+        .doc-auth-pass-wrap {
+            position: relative; margin-bottom: 14px;
+        }
+        .doc-auth-pass-wrap .doc-auth-field { margin-bottom: 0; padding-right: 44px; }
+        .doc-eye-btn {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; padding: 4px;
+            color: #94a3b8; display: flex; align-items: center; justify-content: center;
+        }
+        .doc-eye-btn:hover { color: #0d6e3f; }
+        .doc-eye-icon { width: 18px; height: 18px; }
+        .doc-eye-icon.hidden { display: none; }
 
     </style>
 </head>
@@ -298,7 +310,18 @@
         <h2>Restricted Document</h2>
         <p>This document is for authorized users only.<br>Please log in with your dashboard credentials.</p>
         <input type="text"     id="docAuthUser" class="doc-auth-field" placeholder="Username" autocomplete="username" />
-        <input type="password" id="docAuthPass" class="doc-auth-field" placeholder="Password" autocomplete="current-password" />
+        <div class="doc-auth-pass-wrap">
+            <input type="password" id="docAuthPass" class="doc-auth-field" placeholder="Password" autocomplete="current-password" />
+            <button type="button" id="docEyeBtn" class="doc-eye-btn" onclick="toggleDocPassword()" title="Show password" tabindex="-1">
+                <svg id="docEyeShow" class="doc-eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg id="docEyeHide" class="doc-eye-icon hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+            </button>
+        </div>
         <button id="docAuthBtn" class="doc-auth-btn" onclick="doDocLogin()">Log In</button>
         <div id="docAuthError" class="doc-auth-error"></div>
         <a href="../index.html" class="doc-back-link">← Back to Dashboard</a>
@@ -905,7 +928,7 @@ Step 6: Property Reverse Address Search (~$0.25/call)
     }
 
     function initDocAuth() {
-        const raw = sessionStorage.getItem(SESSION_KEY);
+        const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
         if (raw) {
             try {
                 const s = JSON.parse(raw);
@@ -914,9 +937,31 @@ Step 6: Property Reverse Address Search (~$0.25/call)
                 }
             } catch (_) {}
             sessionStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(SESSION_KEY);
         }
-        // Keep overlay visible
+        // Keep overlay visible — focus username field
+        const u = document.getElementById('docAuthUser');
+        if (u) setTimeout(() => u.focus(), 100);
     }
+
+    window.toggleDocPassword = function () {
+        const field = document.getElementById('docAuthPass');
+        const show  = document.getElementById('docEyeShow');
+        const hide  = document.getElementById('docEyeHide');
+        const btn   = document.getElementById('docEyeBtn');
+        if (!field) return;
+        if (field.type === 'password') {
+            field.type = 'text';
+            if (show) show.classList.add('hidden');
+            if (hide) hide.classList.remove('hidden');
+            if (btn)  btn.title = 'Hide password';
+        } else {
+            field.type = 'password';
+            if (show) show.classList.remove('hidden');
+            if (hide) hide.classList.add('hidden');
+            if (btn)  btn.title = 'Show password';
+        }
+    };
 
     window.doDocLogin = async function () {
         const username = (document.getElementById('docAuthUser').value || '').trim();
@@ -932,7 +977,9 @@ Step 6: Property Reverse Address Search (~$0.25/call)
         errEl.style.display = 'none';
 
         function onSuccess() {
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user: username, ts: Date.now() }));
+            const sessionData = JSON.stringify({ user: username, ts: Date.now() });
+            sessionStorage.setItem(SESSION_KEY, sessionData);
+            localStorage.setItem(SESSION_KEY, sessionData);
             showDoc();
         }
 
@@ -959,7 +1006,7 @@ Step 6: Property Reverse Address Search (~$0.25/call)
                 const ct = resp.headers.get('content-type') || '';
                 if (ct.includes('application/json')) {
                     const data = await resp.json().catch(() => ({}));
-                    if (data.ok) { onSuccess(); return; }
+                    if (data.ok || data.success) { onSuccess(); return; }
                     btn.disabled = false; btn.textContent = 'Log In';
                     errEl.textContent = data.error || 'Invalid username or password.';
                     errEl.style.display = 'block'; return;
