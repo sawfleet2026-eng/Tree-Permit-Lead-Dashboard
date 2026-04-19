@@ -655,6 +655,20 @@ function toggleNotificationPanel() {
     if (panel) panel.classList.toggle('hidden');
 }
 
+function toggleDocsMenu() {
+    const menu = document.getElementById('docsMenu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+// Close docs menu when clicking outside
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('docsMenu');
+    if (menu && !menu.classList.contains('hidden')) {
+        const parent = menu.closest('.relative');
+        if (parent && !parent.contains(e.target)) menu.classList.add('hidden');
+    }
+});
+
 function markAllNotifSeen() {
     if (!requireAuth('clear notifications')) return;
     localStorage.setItem('notifLastSeen', new Date().toISOString());

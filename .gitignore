@@ -83,9 +83,14 @@ Source_Validation_Report.html
 *_Report.html
 *_Manual.html
 User_Manual.html
+Technical_Design_Document.html
 proposal/
 Permits_Data_Scrapping_Strategy.html
 *_Strategy.html
+*.pdf
+*.png
+*.jpg
+*.jpeg
 
 # Other workspace files that shouldn't go to public repo
 amy-dashboard-update/
