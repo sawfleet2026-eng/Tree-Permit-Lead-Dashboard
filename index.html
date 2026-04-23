@@ -343,10 +343,20 @@
                         <h2 class="text-lg font-bold text-gray-900 dark:text-white">Historical Data</h2>
                         <p class="text-sm text-gray-500 dark:text-gray-400">All permits from every source — no date filters applied. Click a source card to filter.</p>
                     </div>
-                    <button onclick="exportHistoricalCSV()" class="btn-action btn-action-primary">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                        Export CSV
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <!-- Historical Column Visibility Toggle -->
+                        <div class="col-toggle-wrap" id="histColToggleWrap">
+                            <button onclick="toggleHistColumnPanel()" class="btn-action btn-action-secondary" id="histColToggleBtn" aria-haspopup="true" aria-expanded="false" title="Show / hide columns">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+                                Columns
+                            </button>
+                            <div class="col-panel" id="histColPanel" role="menu" aria-label="Toggle historical columns"></div>
+                        </div>
+                        <button onclick="exportHistoricalCSV()" class="btn-action btn-action-primary">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Export CSV
+                        </button>
+                    </div>
                 </div>
                 <div id="historicalCards" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4"></div>
             </div>

@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuth();
     try { initLeadGrid(); } catch(e) { console.error('initLeadGrid failed:', e); }
     try { initHealthGrid(); } catch(e) { console.error('initHealthGrid failed:', e); }
-    try { initHistoricalGrid(); } catch(e) { console.error('initHistoricalGrid failed:', e); }
+    try { initHistoricalGrid(); applyHistColumnPrefs(); } catch(e) { console.error('initHistoricalGrid failed:', e); }
 
     loadData().finally(() => clearTimeout(spinnerTimer));
 
@@ -1267,13 +1267,32 @@ function bulkApprove() { bulkAction('approved'); }
 function bulkReject() { bulkAction('rejected'); }
 
 // ── Export ──────────────────────────────────────────────────────────────
+
+/** Returns the ordered list of visible column field names for the Lead List grid. */
+function _visibleLeadColumnKeys() {
+    const allKeys = ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'];
+    const prefs = _currentColumnPrefs();
+    // Always include non-toggleable columns (lead_score, permit_number, source_url).
+    // For toggleable ones, respect the saved prefs.
+    const toggleableFields = new Set(TOGGLEABLE_COLUMNS.map(c => c.field));
+    return allKeys.filter(k => !toggleableFields.has(k) || prefs[k] !== false);
+}
+
+/** Returns the ordered list of visible column field names for the Historical grid. */
+function _visibleHistColumnKeys() {
+    const allKeys = ['source_name','owner_name','address','owner_phone','owner_email','permit_type','permit_description','permit_number','permit_date','permit_status','jurisdiction','lead_score','lead_status','contractor_name','contractor_phone','discovered_at'];
+    const prefs = _currentHistColumnPrefs();
+    const toggleableFields = new Set(HIST_TOGGLEABLE_COLUMNS.map(c => c.field));
+    return allKeys.filter(k => !toggleableFields.has(k) || prefs[k] !== false);
+}
+
 function exportCSV() {
     if (!requireAuth('export data')) return;
     if (leadGridApi) {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+            columnKeys: _visibleLeadColumnKeys(),
         });
         showToast('CSV exported');
     }
@@ -1291,7 +1310,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+        columnKeys: _visibleLeadColumnKeys(),
     });
 
     // Mark as exported in db
@@ -1312,7 +1331,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+            columnKeys: _visibleHistColumnKeys(),
         });
         showToast('Historical CSV exported');
     }
@@ -1411,14 +1430,23 @@ function toggleColumnPanel() {
     if (opening) _renderColumnPanel();
 }
 
-/** Close panel when clicking outside. */
+/** Close panels when clicking outside. */
 document.addEventListener('click', (e) => {
+    // Lead List column panel
     const wrap = document.getElementById('colToggleWrap');
     const panel = document.getElementById('colPanel');
     if (panel && wrap && !wrap.contains(e.target)) {
         panel.classList.remove('open');
         const btn = document.getElementById('colToggleBtn');
         if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    // Historical column panel
+    const histWrap = document.getElementById('histColToggleWrap');
+    const histPanel = document.getElementById('histColPanel');
+    if (histPanel && histWrap && !histWrap.contains(e.target)) {
+        histPanel.classList.remove('open');
+        const histBtn = document.getElementById('histColToggleBtn');
+        if (histBtn) histBtn.setAttribute('aria-expanded', 'false');
     }
 });
 
@@ -1439,6 +1467,119 @@ function resetColumnPrefs() {
     _saveColumnPrefs(prefs);
     applyColumnPrefs();
     _renderColumnPanel();
+    showToast('All columns visible', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Column Visibility — Show/Hide columns on Historical Data (persisted)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Toggleable columns for the Historical Data grid.
+ * Score and Permit # are always visible (not toggleable).
+ */
+const HIST_TOGGLEABLE_COLUMNS = [
+    { field: 'source_name',        label: 'Source' },
+    { field: 'owner_name',         label: 'Owner' },
+    { field: 'address',            label: 'Address' },
+    { field: 'owner_phone',        label: 'Owner Phone' },
+    { field: 'owner_email',        label: 'Owner Email' },
+    { field: 'permit_type',        label: 'Permit Type' },
+    { field: 'permit_description', label: 'Description' },
+    { field: 'permit_date',        label: 'Date' },
+    { field: 'permit_status',      label: 'Permit Status' },
+    { field: 'jurisdiction',       label: 'Jurisdiction' },
+    { field: 'contractor_name',    label: 'Contractor' },
+    { field: 'contractor_phone',   label: 'Contr. Phone' },
+    { field: 'lead_status',        label: 'Status' },
+    { field: 'discovered_at',      label: 'Discovered' },
+];
+
+const HIST_COL_PREFS_KEY = 'histColumnVisibility';
+
+/** Load saved historical visibility prefs from localStorage (default: all visible). */
+function _loadHistColumnPrefs() {
+    try {
+        const raw = localStorage.getItem(HIST_COL_PREFS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) { /* corrupt — fall through to defaults */ }
+    return null;
+}
+
+/** Persist current historical visibility map to localStorage. */
+function _saveHistColumnPrefs(prefs) {
+    localStorage.setItem(HIST_COL_PREFS_KEY, JSON.stringify(prefs));
+}
+
+/** Get current historical visibility map: { field: true/false }. */
+function _currentHistColumnPrefs() {
+    const saved = _loadHistColumnPrefs();
+    if (saved) return saved;
+    const prefs = {};
+    HIST_TOGGLEABLE_COLUMNS.forEach(c => { prefs[c.field] = true; });
+    return prefs;
+}
+
+/** Apply saved historical column prefs to the AG Grid (call after grid init). */
+function applyHistColumnPrefs() {
+    if (!historicalGridApi) return;
+    const prefs = _currentHistColumnPrefs();
+    HIST_TOGGLEABLE_COLUMNS.forEach(({ field }) => {
+        const visible = prefs[field] !== false;
+        historicalGridApi.setColumnsVisible([field], visible);
+    });
+}
+
+/** Build the checkbox panel innerHTML for Historical. */
+function _renderHistColumnPanel() {
+    const panel = document.getElementById('histColPanel');
+    if (!panel) return;
+    const prefs = _currentHistColumnPrefs();
+    const visibleCount = HIST_TOGGLEABLE_COLUMNS.filter(c => prefs[c.field] !== false).length;
+
+    let html = `<div class="col-panel-header">
+        <span>Columns (${visibleCount}/${HIST_TOGGLEABLE_COLUMNS.length})</span>
+        <button class="col-panel-reset" onclick="resetHistColumnPrefs()" title="Show all columns">Show All</button>
+    </div>`;
+
+    HIST_TOGGLEABLE_COLUMNS.forEach(({ field, label }) => {
+        const checked = prefs[field] !== false ? 'checked' : '';
+        html += `<label class="col-panel-item" role="menuitemcheckbox" aria-checked="${prefs[field] !== false}">
+            <input type="checkbox" ${checked} onchange="onHistColumnToggle('${field}', this.checked)">
+            <span class="col-label">${label}</span>
+        </label>`;
+    });
+
+    panel.innerHTML = html;
+}
+
+/** Toggle the historical column panel open/closed. */
+function toggleHistColumnPanel() {
+    const panel = document.getElementById('histColPanel');
+    const btn = document.getElementById('histColToggleBtn');
+    if (!panel) return;
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    if (btn) btn.setAttribute('aria-expanded', opening);
+    if (opening) _renderHistColumnPanel();
+}
+
+/** Handle a single historical column toggle. */
+function onHistColumnToggle(field, visible) {
+    const prefs = _currentHistColumnPrefs();
+    prefs[field] = visible;
+    _saveHistColumnPrefs(prefs);
+    if (historicalGridApi) historicalGridApi.setColumnsVisible([field], visible);
+    _renderHistColumnPanel();
+}
+
+/** Reset all historical columns to visible. */
+function resetHistColumnPrefs() {
+    const prefs = {};
+    HIST_TOGGLEABLE_COLUMNS.forEach(c => { prefs[c.field] = true; });
+    _saveHistColumnPrefs(prefs);
+    applyHistColumnPrefs();
+    _renderHistColumnPanel();
     showToast('All columns visible', 'info');
 }
 
